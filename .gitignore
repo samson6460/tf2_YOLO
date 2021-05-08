@@ -1,0 +1,6 @@
+*.h5
+*.hdf5
+*.pyc
+.vscode
+.DS_Store
+__pycache__
