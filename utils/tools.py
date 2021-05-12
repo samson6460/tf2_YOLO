@@ -66,10 +66,13 @@ def read_file(img_path=None,
               size=(448, 448),
               grid_num=7,
               class_names=[],
+              rescale=1/255,
+              preprocessing=None,
               augmenter=None,
               aug_times=1,
               shuffle=True,
               seed=None,
+              encoding="big5",
               thread_num=10):
     """Read the images and annotations created by labelimg or labelme.
 
@@ -87,23 +90,42 @@ def read_file(img_path=None,
             grid_num x grid_num grids.
         class_names: A list of string,
             containing all label names.
+        rescale: A float or None,
+            specifying how the image value should be scaled.
+            If None, no scaled.
+        preprocessing: A function of data preprocessing,
+            (e.g. noralization, shape manipulation, etc.)
         augmenter: A `imgaug.augmenters.meta.Sequential` instance.
         aug_times: An integer,
             the default is 1, which means no augmentation.
         shuffle: Boolean, default: True.
         seed: An integer, random seed, default: None.
+        encoding: A string,
+            encoding format of file,
+            default: "big5".
         thread_num: An integer,
             specifying the number of threads to read files.
 
     Returns:
-        A tuple of 2 ndarrays, (data, label),
-        shape of data: (sample_num, img_height, img_width, channel)
+        A tuple of 2 ndarrays, (img, label),
+        shape of img: (sample_num, img_height, img_width, channel)
         shape of label: (sample_num, grid_num, grid_num, info)
     """
+    def _process_paths(path_list, aug_times):
+        path_list = np.array(path_list)
+        U_num = path_list.dtype.itemsize//4 + 5
+        dtype = "<U" + str(U_num)
+        filepaths = np.empty((len(path_list),
+                             aug_times),
+                             dtype = dtype)
+        filepaths[:, 0] = path_list
+        filepaths[:, 1:] = np.char.add(filepaths[:, 0:1], "(aug)")
+        path_list = filepaths.flatten()
+        return path_list
+    
     def _encode_to_array(img, bbs,
                          grid_num, pos, name, labels):
-        img = img/255.
-        train_data[pos] = img
+        img_data[pos] = img
 
         grid_height = img.shape[0]/grid_num
         grid_width = img.shape[1]/grid_num
@@ -152,8 +174,8 @@ def read_file(img_path=None,
 
             with open(os.path.join(
                       label_path,
-                      name[:name.rfind(".")] + ".xml"
-                      )) as f:
+                      name[:name.rfind(".")] + ".xml"),
+                      encoding=encoding) as f:
                 soup = BeautifulSoup(f.read(), "xml")
 
             img = Image.open(os.path.join(img_path, name))
@@ -185,7 +207,7 @@ def read_file(img_path=None,
             with open(os.path.join(
                       label_path,
                       name[:name.rfind(".")] + ".json"),
-                      encoding="big5") as f:
+                      encoding=encoding) as f:
                 jdata = f.read()
                 data = json.loads(jdata)
 
@@ -229,7 +251,7 @@ def read_file(img_path=None,
     if augmenter is None:
         aug_times = 1
 
-    train_data = np.empty((path_list_len*aug_times,
+    img_data = np.empty((path_list_len*aug_times,
                            *size, 3))
     label_data = np.zeros((path_list_len*aug_times,
                            grid_num, grid_num,
@@ -256,15 +278,25 @@ def read_file(img_path=None,
     for thread in threads:
         thread.join()
 
+    if rescale is not None:
+        img_data = img_data*rescale
+    if preprocessing is not None:
+        img_data = preprocessing(img_data)
+
+    path_list = _process_paths(path_list, aug_times)
+
     if shuffle:
         if seed is not None:
             np.random.seed(seed)
-        shuffle_index = np.arange(len(train_data))
+        shuffle_index = np.arange(len(img_data))
         np.random.shuffle(shuffle_index)
-        train_data = train_data[shuffle_index]
+        img_data = img_data[shuffle_index]
         label_data = label_data[shuffle_index]
+        path_list = path_list[shuffle_index]
 
-    return train_data, label_data
+    path_list = path_list.tolist()
+
+    return img_data, label_data, path_list
 
 
 class YoloDataSequence(Sequence):
@@ -282,16 +314,24 @@ class YoloDataSequence(Sequence):
             one of "labelimg" and "labelme".
         size: A tuple of 2 integer,
             shape of output image(heights, widths).
+        rescale: A float or None,
+            specifying how the image value should be scaled.
+            If None, no scaled.
+        preprocessing: A function of data preprocessing,
+            (e.g. noralization, shape manipulation, etc.)
         grid_num: An integer, specifying
             input images will be divided into 
             grid_num x grid_num grids.
         class_names: A list of string,
             containing all label names.
         augmenter: A `imgaug.augmenters.meta.Sequential` instance.
-        aug_times: An integer,
-            the default is 1, which means no augmentation.
         shuffle: Boolean, default: True.
         seed: An integer, random seed, default: None.
+        encoding: A string,
+            encoding format of file,
+            default: "big5".
+        thread_num: An integer,
+            specifying the number of threads to read files.
 
     Returns:
         A tf.Sequence.
@@ -301,34 +341,37 @@ class YoloDataSequence(Sequence):
                  batch_size=20,
                  label_format="labelimg",
                  size=(448, 448),
+                 rescale=1/255,
+                 preprocessing=None,
                  grid_num=7,
                  class_names=[],
                  augmenter=None,
-                 aug_times=1,
                  shuffle=True,
-                 seed=None):
+                 seed=None,
+                 encoding="big5",
+                 thread_num=1):
         self.img_path = img_path
         self.label_path = label_path
         self.batch_size = batch_size
         self.label_format = label_format
         self.size = size
+        self.rescale = rescale
+        self.preprocessing = preprocessing
         self.grid_num = grid_num
         self.class_names = class_names
         self.class_num = len(class_names)
         self.augmenter = augmenter
-        if augmenter is None:
-            self.aug_times = 1
-        else:
-            self.aug_times = aug_times
         self.shuffle = shuffle
         self.seed = seed
+        self.encoding = encoding
+        self.thread_num = thread_num
 
         if (label_format == "labelme" 
             and (img_path is None or label_path is None)):
             if label_path is None:
-                label_path = img_path
-                img_path = None
-            path_list = os.listdir(label_path)
+                self.label_path = img_path
+                self.img_path = None
+            path_list = os.listdir(self.label_path)
             self.path_list = [f for f in path_list if f.endswith(".json")]
         else:
             path_list = os.listdir(img_path)
@@ -342,17 +385,14 @@ class YoloDataSequence(Sequence):
             self.path_list = self.path_list.tolist()
 
     def __len__(self):
-        return ceil(len(self.path_list)
-                    * self.aug_times
-                    / self.batch_size)
+        return ceil(len(self.path_list)/self.batch_size)
 
     def __getitem__(self, idx):
         if idx >= self.__len__():
             raise IndexError("Sequence index out of range")
         def _encode_to_array(img, bbs,
                              grid_num, pos, labels):
-            img = img/255.
-            train_data[pos] = img
+            img_data[pos] = img
 
             grid_height = img.shape[0]/grid_num
             grid_width = img.shape[1]/grid_num
@@ -382,35 +422,23 @@ class YoloDataSequence(Sequence):
         
         def _imgaug_to_array(img, bbs,
                 grid_num, pos, labels):
-            remaind_times = idx*self.batch_size%self.aug_times
-            if ((pos == 0 and remaind_times == 0)
-                or pos > 0):
+            if self.augmenter is None:
                 _encode_to_array(img, bbs,
                     grid_num, pos, labels)
-                pos += 1
-                aug_times = self.aug_times
             else:
-                aug_times = self.aug_times - remaind_times + 1
+                img_aug, bbs_aug = self.augmenter(
+                    image=img,
+                    bounding_boxes=bbs)
+                _encode_to_array(img_aug, bbs_aug,
+                    grid_num, pos, labels)
 
-            if self.augmenter is not None:
-                for _ in range(1, aug_times):
-                    if pos >= batch_size:
-                        break
-                    img_aug, bbs_aug = self.augmenter(
-                        image=img,
-                        bounding_boxes=bbs)
-                    _encode_to_array(img_aug, bbs_aug,
-                        grid_num, pos, labels)
-                    pos += 1
-            return pos
-
-        def _read_labelimg(_path_list):
-            pos = 0
-            for name in _path_list:
+        def _read_labelimg(_path_list, _pos):
+            for i, name in enumerate(_path_list):
+                pos = (_pos + i)
                 with open(os.path.join(
                           self.label_path,
-                          name[:name.rfind(".")] + ".xml"
-                          )) as f:
+                          name[:name.rfind(".")] + ".xml"),
+                          encoding=self.encoding) as f:
                     soup = BeautifulSoup(f.read(), "xml")
 
                 img = Image.open(os.path.join(self.img_path, name))
@@ -433,16 +461,16 @@ class YoloDataSequence(Sequence):
                                                x2=xmax,
                                                y2=ymax))
                 bbs = BoundingBoxesOnImage(bbs, shape=img.shape)
-                pos = _imgaug_to_array(img, bbs,
+                _imgaug_to_array(img, bbs,
                     self.grid_num, pos, labels)
 
-        def _read_labelme(_path_list):
-            pos = 0
-            for name in _path_list:
+        def _read_labelme(_path_list, _pos):
+            for i, name in enumerate(_path_list):
+                pos = (_pos + i)
                 with open(os.path.join(
                           self.label_path,
                           name[:name.rfind(".")] + ".json"),
-                          encoding="big5") as f:
+                          encoding=self.encoding) as f:
                     jdata = f.read()
                     data = json.loads(jdata)
 
@@ -452,7 +480,7 @@ class YoloDataSequence(Sequence):
                 else:
                     img = Image.open(os.path.join(self.img_path, name))
 
-                img, zoom_r = self._process_img(img, self.size)
+                img, zoom_r = _process_img(img, self.size)
 
                 bbs = []
                 labels = []
@@ -469,28 +497,74 @@ class YoloDataSequence(Sequence):
                                                x2=point[1, 0],
                                                y2=point[1, 1]))
                 bbs = BoundingBoxesOnImage(bbs, shape=img.shape)
-                pos = _imgaug_to_array(img, bbs,
+                _imgaug_to_array(img, bbs,
                     self.grid_num, pos, labels)
 
-        total_len = len(self.path_list)*self.aug_times
+        total_len = len(self.path_list)
         if (idx + 1)*self.batch_size > total_len:
             batch_size = total_len % self.batch_size
         else:
             batch_size = self.batch_size
-        train_data = np.empty((batch_size, *self.size, 3))
+        img_data = np.empty((batch_size, *self.size, 3))
         label_data = np.zeros((batch_size,
                                self.grid_num, self.grid_num,
                                5 + self.class_num))
-        start_idx = idx*self.batch_size//self.aug_times
-        end_idx = ((idx + 1)*self.batch_size - 1)//self.aug_times + 1
+        start_idx = idx*self.batch_size
+        end_idx = (idx + 1)*self.batch_size
         path_list = self.path_list[start_idx:end_idx]
         if self.label_format == "labelimg":
-            _read_labelimg(path_list)
+            thread_func = _read_labelimg
         elif self.label_format == "labelme":
-            _read_labelme(path_list)
+            thread_func = _read_labelme
         else:
-            raise ValueError("Invalid format: %s" % self.label_format)  
-        return  train_data, label_data
+            raise ValueError("Invalid format: %s" % self.label_format)
+
+        threads = []
+        workers = ceil(len(path_list)/self.thread_num)
+
+        for worker_i in range(0, len(path_list), workers):
+            threads.append(
+                threading.Thread(target=thread_func,
+                args=(path_list[worker_i : worker_i+workers],
+                      worker_i)))
+        for thread in threads:
+            thread.start()                
+        for thread in threads:
+            thread.join()
+
+        if self.rescale is not None:
+            img_data = img_data*self.rescale
+        if self.preprocessing is not None:
+            img_data = self.preprocessing(img_data)
+      
+        return img_data, label_data
+
+
+def down2xlabel(label_data):
+    batches = label_data.shape[0]
+    grid_h = label_data.shape[1]
+    grid_w = label_data.shape[2]
+    channels = label_data.shape[3]
+
+    new_label = np.zeros((
+        batches,
+        grid_h//2,
+        grid_w//2,
+        channels))
+
+    for batch in range(batches):
+        for i in range(0, grid_h, 2):
+            for j in range(0, grid_w, 2):
+                crop = label_data[batch][i:i+2, j:j+2]
+                if crop[..., 4].max() == 1:
+                    max_id = (crop[..., 2]*crop[..., 3]).argmax()
+                    crop = crop[max_id//2, max_id%2]
+                    crop_xy = crop[:2]
+                    crop_xy = (crop_xy + [max_id%2, max_id//2])/2
+                    crop_whcp = crop[2:]
+                    new_label[batch][i//2, j//2, :2] = crop_xy
+                    new_label[batch][i//2, j//2, 2:] = crop_whcp
+    return new_label
 
 
 def decode(*label_datas,

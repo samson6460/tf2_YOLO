@@ -4,9 +4,13 @@ from tensorflow.keras.layers import Dense
 from tensorflow.keras.layers import UpSampling2D, Concatenate
 from tensorflow.keras.layers import MaxPooling2D
 from tensorflow.keras.layers import GlobalAveragePooling2D
+from tensorflow.keras.utils import get_file
 from .backbone import DarknetConv2D_BN_Leaky
 from .backbone import darknet_body, make_last_layers
 from .backbone import compose
+
+
+WEIGHTS_PATH_DN_BODY = "https://github.com/samson6460/tf2_YOLO/releases/download/1.0/tf_keras_yolov3_body.h5"
 
 
 def darknet53(input_shape=(416, 416, 3), class_num=10):
@@ -46,6 +50,11 @@ def yolo_body(input_shape=(416, 416, 3),
     model = Model(inputs, [y1, y2, y3])
 
     if pretrained_weights is not None:
+        if pretrained_weights == "pascal_voc":
+            pretrained_weights = get_file(
+                "tf_keras_yolov3_body.h5",
+                WEIGHTS_PATH_DN_BODY,
+                cache_subdir="models")
         model.load_weights(pretrained_weights)
 
     return model

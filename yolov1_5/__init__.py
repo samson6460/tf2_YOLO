@@ -85,13 +85,19 @@ class Yolo(object):
             self.model.load_weights(pretrained_weights)
         self.grid_num = self.model.output.shape[1]
 
-    def read_file(self, img_path=None, label_path=None,
-                  label_format="labelimg",
-                  augmenter=None,
-                  aug_times=1,
-                  shuffle=True, seed=None,
-                  thread_num=10):
-        """Read the images and annotaions created by labelimg or labelme.
+    def read_file_to_dataset(
+        self, img_path=None, label_path=None,
+        label_format="labelimg",
+        rescale=1/255,
+        preprocessing=None,
+        augmenter=None,
+        aug_times=1,
+        shuffle=True, seed=None,
+        encoding="big5",
+        thread_num=10,
+        fpn_id=0):
+        """Read the images and annotaions
+        created by labelimg or labelme as ndarray.
 
         Args:
             img_path: A string, 
@@ -100,30 +106,109 @@ class Yolo(object):
                 file path of annotations.
             label_format: A string,
                 one of "labelimg" and "labelme".
+            rescale: A float or None,
+                specifying how the image value should be scaled.
+                If None, no scaled.
+            preprocessing: A function of data preprocessing,
+                (e.g. noralization, shape manipulation, etc.)
             augmenter: A `imgaug.augmenters.meta.Sequential` instance.
             aug_times: An integer,
                 the default is 1, which means no augmentation.
             shuffle: Boolean, default: True.
             seed: An integer, random seed, default: None.
+            encoding: A string,
+                encoding format of file,
+                default: "big5".
+            thread_num: An integer,
+                specifying the number of threads to read files.
+            fpn_id: An integer,
+                specifying the layer index of FPN.
+                The id of smallest feature layer is 0.
+
+        Returns:
+            A tuple of 2 ndarrays, (img), label),
+            shape of data: (batch_size, img_height, img_width, channel)
+            shape of label: (batch_size, grid_num, grid_num, info)
+        """
+        img_data, label_data, path_list = tools.read_file(
+            img_path=img_path, 
+            label_path=label_path,
+            label_format=label_format,
+            size=self.input_shape[:2], 
+            grid_num=self.grid_num*(2**fpn_id),
+            class_names=self.class_names,
+            rescale=rescale,
+            preprocessing=preprocessing,
+            augmenter=augmenter,
+            aug_times=aug_times,
+            shuffle=shuffle, seed=seed,
+            encoding=encoding,
+            thread_num=thread_num)
+        self.file_names = path_list
+
+        return img_data, label_data
+
+    def read_file_to_sequence(
+        self, img_path=None,
+        label_path=None,
+        batch_size=20,
+        label_format="labelimg",
+        rescale=1/255,
+        preprocessing=None,
+        augmenter=None,
+        shuffle=True, seed=None,
+        encoding="big5",
+        thread_num=1):
+        """Read the images and annotaions
+        created by labelimg or labelme as sequence.
+
+        Args:
+            img_path: A string, 
+                file path of images.
+            label_path: A string,
+                file path of annotations.
+            batch_size: An integer,
+                size of the batches of data (default: 20).
+            label_format: A string,
+                one of "labelimg" and "labelme".
+            rescale: A float or None,
+                specifying how the image value should be scaled.
+                If None, no scaled.
+            preprocessing: A function of data preprocessing,
+                (e.g. noralization, shape manipulation, etc.)
+            augmenter: A `imgaug.augmenters.meta.Sequential` instance.
+            shuffle: Boolean, default: True.
+            seed: An integer, random seed, default: None.
+            encoding: A string,
+                encoding format of file,
+                default: "big5".
             thread_num: An integer,
                 specifying the number of threads to read files.
 
         Returns:
-            A tuple of 2 ndarrays, (data, label),
-            shape of data: (batch size, img height, img width, color channel)
-            shape of label: (batch size, grid num, grid num, encode)
+            A tf.Sequence: 
+                Sequence[i]: (img, label)
+            shape of img: (batch_size, img_height, img_width, channel)
+            shape of label: (batch_size, grid_num, grid_num, info)
         """
-        return tools.read_file(img_path=img_path, 
-                               label_path=label_path,
-                               label_format=label_format,
-                               size=self.input_shape[:2], 
-                               grid_num=self.grid_num, 
-                               class_names=self.class_names,
-                               augmenter=augmenter,
-                               aug_times=aug_times,
-                               shuffle=shuffle,
-                               seed=seed,
-                               thread_num=thread_num)
+        seq = tools.YoloDataSequence(
+            img_path=img_path,
+            label_path=label_path,
+            batch_size=batch_size,
+            label_format=label_format,
+            size=self.input_shape[:2],
+            rescale=rescale,
+            preprocessing=preprocessing,
+            grid_num=self.grid_num,
+            class_names=self.class_names,
+            augmenter=augmenter,
+            shuffle=shuffle,
+            seed=seed,
+            encoding=encoding,
+            thread_num=thread_num)
+        self.file_names = seq.path_list
+
+        return seq
 
     def vis_img(self, img, label_data,
                 conf_threshold=0.5,
