@@ -28,45 +28,48 @@ class Acc_type(object):
 class Yolo(object):
     """Yolo class.
 
-    Use read_file() to read dataset、
+    Use read_file_to_dataset() to read dataset、
+    Use vis_img() to visualize the images and annotations. 
     create_model() to create a tf.keras Model.
-    Compile the model by using loss()、metrics().
-    Use vis_img to visualize the images and annotations. 
+    Compile the model by using loss()、metrics(). 
 
     Args:
         input_shape: A tuple of 3 integers,
             shape of input image.
-        bbox_num: An integer, the number of bounding boxes.
         class_names: A list, containing all label names.
 
     Attributes:
         input_shape
-        grid_num An integer,
+        class_names
+        grid_num: An integer,
             the input image will be divided into 
             the square of this grid number.
-        bbox_num
-        class_names
+        bbox_num: An integer, the number of bounding boxes.
         class_num: An integer, the number of all classes.
         model: A tf.keras Model.
+        file_names: A list of string
+            with all file names that have been read.
     """
 
     def __init__(self,
                  input_shape=(448, 448, 3),
-                 bbox_num=2,
                  class_names=[]):
         self.input_shape = input_shape
         self.grid_num = input_shape[0]//64
-        self.bbox_num = bbox_num
+        self.bbox_num = 2
         self.class_names = class_names
         self.class_num = len(class_names)
         self.model = None
+        self.file_names = None
         
     def create_model(self,
+                     bbox_num=2,
                      pretrained_weights=None,
                      pretrained_backbone=None):
         """Create a yolo model.
 
         Args:
+            bbox_num: An integer, the number of bounding boxes.
             pretrained_weights: A string, 
                 file path of pretrained model.
             pretrained_backbone: A tf.keras Model,
@@ -79,10 +82,11 @@ class Yolo(object):
                                pretrained_backbone)
 
         self.model = yolo_head(model_body,
-                               self.bbox_num,
+                               bbox_num,
                                self.class_num)
         if pretrained_weights is not None:
             self.model.load_weights(pretrained_weights)
+        self.bbox_num = bbox_num
         self.grid_num = self.model.output.shape[1]
 
     def read_file_to_dataset(
@@ -94,8 +98,7 @@ class Yolo(object):
         aug_times=1,
         shuffle=True, seed=None,
         encoding="big5",
-        thread_num=10,
-        fpn_id=0):
+        thread_num=10):
         """Read the images and annotaions
         created by labelimg or labelme as ndarray.
 
@@ -121,21 +124,18 @@ class Yolo(object):
                 default: "big5".
             thread_num: An integer,
                 specifying the number of threads to read files.
-            fpn_id: An integer,
-                specifying the layer index of FPN.
-                The id of smallest feature layer is 0.
 
         Returns:
-            A tuple of 2 ndarrays, (img), label),
-            shape of data: (batch_size, img_height, img_width, channel)
-            shape of label: (batch_size, grid_num, grid_num, info)
+            A tuple of 2 ndarrays, (img, label),
+            - shape of img: (batch_size, img_height, img_width, channel)
+            - shape of label: (batch_size, grid_num, grid_num, info)
         """
         img_data, label_data, path_list = tools.read_file(
             img_path=img_path, 
             label_path=label_path,
             label_format=label_format,
             size=self.input_shape[:2], 
-            grid_num=self.grid_num*(2**fpn_id),
+            grid_num=self.grid_num,
             class_names=self.class_names,
             rescale=rescale,
             preprocessing=preprocessing,
@@ -188,8 +188,8 @@ class Yolo(object):
         Returns:
             A tf.Sequence: 
                 Sequence[i]: (img, label)
-            shape of img: (batch_size, img_height, img_width, channel)
-            shape of label: (batch_size, grid_num, grid_num, info)
+            - shape of img: (batch_size, img_height, img_width, channel)
+            - shape of label: (batch_size, grid_num, grid_num, info)
         """
         seq = tools.YoloDataSequence(
             img_path=img_path,
@@ -262,7 +262,7 @@ class Yolo(object):
                              nms_sigma=nms_sigma,                              
                              **kwargs)
 
-    def loss(self, binary_weight, loss_weight=[1, 1, 1, 1]):
+    def loss(self, binary_weight, loss_weight=[5, 5, 1, 1]):
         """Loss of yolo.
 
         Args:
@@ -270,7 +270,7 @@ class Yolo(object):
                 the ratio of positive and negative.
             loss_weight: A dictionary or list of length 4,
                 specifying the weights of each loss.
-                Example:{"xy":1, "wh":1, "conf":1, "pr":1},
+                Example:{"xy":1, "wh":1, "conf":1, "prob":1},
                 or [5, 5, 0.5, 1].
 
         Returns:
@@ -281,7 +281,7 @@ class Yolo(object):
             loss_weight_list.append(loss_weight["xy"])
             loss_weight_list.append(loss_weight["wh"])
             loss_weight_list.append(loss_weight["conf"])
-            loss_weight_list.append(loss_weight["pr"])
+            loss_weight_list.append(loss_weight["prob"])
             loss_weight = loss_weight_list
         return wrap_yolo_loss(
             grid_num=self.grid_num,
@@ -290,6 +290,7 @@ class Yolo(object):
             binary_weight=binary_weight,
             loss_weight=loss_weight
             )
+    
     def metrics(self, acc_type="obj"):
         """Metrics of yolo.
 

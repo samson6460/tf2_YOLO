@@ -50,10 +50,10 @@ class Yolov3DataSequence(Sequence):
 class Yolo(object):
     """Yolo class.
 
-    Use read_file() to read dataset、
+    Use read_file_to_dataset() to read dataset、
+    Use vis_img() to visualize the images and annotations. 
     create_model() to create a tf.keras Model.
     Compile the model by using loss()、metrics().
-    Use vis_img() to visualize the images and annotations. 
 
     Args:
         input_shape: A tuple of 3 integers,
@@ -65,12 +65,13 @@ class Yolo(object):
 
     Attributes:
         input_shape
+        class_names
         grid_num: An integer,
             the input image will be divided into 
             the square of this grid number.
         abox_num: An integer, the number of anchor boxes.
-        class_names
         class_num: An integer, the number of all classes.
+        anchors: 2D array like, prior anchor boxes.
         model: A tf.keras Model.
         file_names: A list of string
             with all file names that have been read.
@@ -78,32 +79,36 @@ class Yolo(object):
 
     def __init__(self,
                  input_shape=(416, 416, 3),
-                 class_names=[],
-                 anchors=[[0.89663461, 0.78365384],
-                          [0.37500000, 0.47596153],
-                          [0.27884615, 0.21634615],
-                          [0.14182692, 0.28605769],
-                          [0.14903846, 0.10817307],
-                          [0.07211538, 0.14663461],
-                          [0.07932692, 0.05528846],
-                          [0.03846153, 0.07211538],
-                          [0.02403846, 0.03125000]]):
+                 class_names=[]):
         self.input_shape = input_shape
         self.grid_num = input_shape[0]//32
-        self.abox_num = len(anchors)//3
+        self.abox_num = 3
         self.class_names = class_names
         self.class_num = len(class_names)
         self.fpn_layers = 3
-        self.anchors = anchors
+        self.anchors = None
         self.model = None
         self.file_names = None
         
-    def create_model(self, backbone="full_darknet",
+    def create_model(self,
+                     anchors=[[0.89663461, 0.78365384],
+                              [0.37500000, 0.47596153],
+                              [0.27884615, 0.21634615],
+                              [0.14182692, 0.28605769],
+                              [0.14903846, 0.10817307],
+                              [0.07211538, 0.14663461],
+                              [0.07932692, 0.05528846],
+                              [0.03846153, 0.07211538],
+                              [0.02403846, 0.03125000]],
+                     backbone="full_darknet",
                      pretrained_weights=None,
                      pretrained_body="pascal_voc"):
         """Create a yolo model.
 
         Args:
+            anchors: 2D array like, 
+                prior anchor boxes(widths, heights),
+                all the values should be normalize to 0-1.
             backbone: A string,
                 one of "full_darknet"、"tiny_darknet"、
                 "resnet90"、"resnet50v2"、"resnet101v2"、
@@ -149,10 +154,11 @@ class Yolo(object):
             model_body.set_weights(pretrained_body.get_weights())
         self.model = yolo_head(model_body,
                                self.class_num,
-                               self.anchors)
+                               anchors)
          
         if pretrained_weights is not None:
             self.model.load_weights(pretrained_weights)
+        self.anchors = anchors
         self.grid_num = self.model.output[0].shape[1]
         self.fpn_layers = len(self.model.output)
         self.abox_num = len(self.anchors)//self.fpn_layers
@@ -195,9 +201,9 @@ class Yolo(object):
 
         Returns:
             A tuple: (img, label_list)(ndarray, list),
-            shape of img: (batch_size, img_height, img_width, channel)
-            shape of label: (batch_size, grid_num, grid_num, info)
             label_list contains the label of all FPN layers.
+            - shape of img: (batch_size, img_height, img_width, channel)
+            - shape of label: (batch_size, grid_num, grid_num, info)
         """
         img_data, label_data, path_list = tools.read_file(
             img_path=img_path, 
@@ -262,9 +268,9 @@ class Yolo(object):
         Returns:
             A tf.Sequence: 
                 Sequence[i]: (img, label_list)(ndarray, list),
-            shape of img: (batch_size, img_height, img_width, channel)
-            shape of label: (batch_size, grid_num, grid_num, info)
             label_list contains the label of all FPN layers.
+            - shape of img: (batch_size, img_height, img_width, channel)
+            - shape of label: (batch_size, grid_num, grid_num, info)
         """
         seq = tools.YoloDataSequence(
             img_path=img_path,
@@ -344,7 +350,7 @@ class Yolo(object):
 
     def loss(self,
              binary_weight=1,
-             loss_weight=[1, 1, 1, 1],
+             loss_weight=[1, 1, 5, 1],
              ignore_thresh=.6,
              use_focal_loss=False,
              focal_loss_gamma=2,
@@ -356,7 +362,7 @@ class Yolo(object):
                 the ratio of positive and negative for each FPN layers.
             loss_weight: A dictionary or list of length 4,
                 specifying the weights of each loss.
-                Example:{"xy":1, "wh":1, "conf":1, "pr":1},
+                Example:{"xy":1, "wh":1, "conf":1, "prob":1},
                 or [5, 5, 0.5, 1].
             ignore_thresh: A float,
                 threshold of ignoring the false positive.
@@ -378,7 +384,7 @@ class Yolo(object):
             loss_weight_list.append(loss_weight["xy"])
             loss_weight_list.append(loss_weight["wh"])
             loss_weight_list.append(loss_weight["conf"])
-            loss_weight_list.append(loss_weight["pr"])
+            loss_weight_list.append(loss_weight["prob"])
             loss_weight = loss_weight_list
         
         loss_list = []

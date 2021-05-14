@@ -1,6 +1,6 @@
 """YOLO_v3 Model Defined in Keras.
 
-Modified from https://github.com/qqwweee/keras-yolo3 ."""
+Modified from https://github.com/qqwweee/keras-yolo3."""
 
 from functools import wraps
 from functools import reduce
