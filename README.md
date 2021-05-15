@@ -97,11 +97,13 @@ seq = yolo.read_file_to_sequence(
 - **batch_size**: An integer, size of the batches of data (default: 20).
 
 ***Returns from YOLOv1、YOLOv2***
+
 A tuple of 2 ndarrays, (img, label),
 - shape of img: (batch_size, img_height, img_width, channel)
 - shape of label: (batch_size, grid_num, grid_num, info)
 
 ***Returns from YOLOv3***
+
 A tuple: (img, label_list)(ndarray, list), label_list contains the label of all FPN layers.
 - shape of img: (batch_size, img_height, img_width, channel)
 - shape of label: (batch_size, grid_num, grid_num, info)

@@ -2,6 +2,7 @@ import tensorflow as tf
 from tensorflow.keras.metrics import binary_accuracy
 from yolov1_5.losses import cal_iou
 
+epsilon = 1e-07
 
 def wrap_obj_acc(grid_num, bbox_num, class_num):
     def obj_acc(y_true, y_pred):
@@ -42,7 +43,7 @@ def wrap_iou_acc(grid_num, bbox_num, class_num):
 
         total = tf.reduce_sum(has_obj_mask)
 
-        return tf.reduce_sum(iou_scores)/total
+        return tf.reduce_sum(iou_scores)/(total + epsilon)
     return iou_acc
 
 

@@ -69,8 +69,8 @@ def wrap_yolo_loss(grid_num,
         xy_true = y_true[..., 0:2] # N*S*S*1*2
         xy_pred = y_pred[..., 0:2] # N*S*S*B*2
 
-        wh_true = tf.clip_by_value(y_true[..., 2:4], epsilon, 1 - epsilon)
-        wh_pred = tf.clip_by_value(y_pred[..., 2:4], epsilon, 1 - epsilon)
+        wh_true = tf.maximum(y_true[..., 2:4], epsilon) # N*S*S*1*2
+        wh_pred = tf.maximum(y_pred[..., 2:4], epsilon) # N*S*S*B*2
         
         wh_true = tf.math.log(wh_true/panchors) # N*S*S*B*2
         wh_pred = tf.math.log(wh_pred/panchors) # N*S*S*B*2

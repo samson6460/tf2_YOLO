@@ -95,6 +95,7 @@ def kmeans(data, n_cluster, dist_func,
             break
 
     center = center.reshape((n_cluster, n_dim))
+    center = center.astype("float32")
     return center
 
 if __name__ == '__main__':
