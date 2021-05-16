@@ -409,12 +409,12 @@ class Yolo(object):
 
         Args:
             acc_type: A string,
-                one of "obj"、"iou" or "class".
-                Or "obj+iou"、"obj+iou+class" to specify
+                one of "obj"、"iou" or "class",
+                or "obj+iou"、"obj+iou+class" to specify
                 multiple metrics.
 
         Returns:
-            A metric function conforming to tf.keras specification.
+            A list of metric function conforming to tf.keras specification.
         """
         metrics_list = [[] for _ in range(self.fpn_layers)]
         if "obj" in acc_type:

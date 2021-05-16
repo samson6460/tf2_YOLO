@@ -36,7 +36,7 @@ def wrap_iou_acc(grid_num, bbox_num, class_num):
         pred_obj_mask = tf.cast(y_pred[..., 4] >= 0.5,
                                 dtype=y_true.dtype) # N*S*S*B
         has_obj_mask = y_true[..., 4] # N*S*S*1
-        has_obj_mask = has_obj_mask*pred_obj_mask
+        has_obj_mask = has_obj_mask*pred_obj_mask # N*S*S*B
 
         xywh_true = y_true[..., :4] # N*S*S*1*4
         xywh_pred = y_pred[..., :4] # N*S*S*B*4
@@ -44,7 +44,7 @@ def wrap_iou_acc(grid_num, bbox_num, class_num):
         iou_scores = cal_iou(xywh_true, xywh_pred, grid_num) # N*S*S*B
         iou_scores = iou_scores*has_obj_mask # N*S*S*B
 
-        total = tf.reduce_sum(has_obj_mask)
+        total = tf.reduce_sum(pred_obj_mask)
 
         return tf.reduce_sum(iou_scores)/(total + epsilon)
     return iou_acc
@@ -59,9 +59,11 @@ def wrap_class_acc(grid_num, bbox_num, class_num):
             y_pred,
             (-1, grid_num, grid_num, bbox_num, 5 + class_num)) # N*S*S*B*5+C
         
-        pred_obj_mask = y_pred[..., 4] # N*S*S*B
-        pred_obj_mask = tf.cast(pred_obj_mask >= 0.5,
-                                dtype=y_true.dtype) # N*S*S*B 
+        pred_obj_mask = tf.cast(y_pred[..., 4] >= 0.5,
+                                dtype=y_true.dtype) # N*S*S*B
+
+        has_obj_mask = y_true[..., 4] # N*S*S*1
+        has_obj_mask = has_obj_mask*pred_obj_mask # N*S*S*B
 
         pi_true = tf.argmax(y_true[..., -class_num:], # N*S*S*1*C
                             axis=-1) # N*S*S*1
@@ -70,7 +72,7 @@ def wrap_class_acc(grid_num, bbox_num, class_num):
         
         equal_mask = tf.cast(pi_true == pi_pred,
                              dtype=y_true.dtype) # N*S*S*B
-        equal_mask = equal_mask*pred_obj_mask # N*S*S*B
+        equal_mask = equal_mask*has_obj_mask # N*S*S*B
 
         total = tf.reduce_sum(pred_obj_mask)
 

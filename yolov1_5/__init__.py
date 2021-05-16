@@ -296,20 +296,30 @@ class Yolo(object):
 
         Args:
             acc_type: A string,
-                one of "obj" or "iou" or "class".
+                one of "obj"、"iou" or "class",
+                or "obj+iou"、"obj+iou+class" to specify
+                multiple metrics.
 
         Returns:
-            A metric function conforming to tf.keras specification.
+             A list of metric function conforming to tf.keras specification.
         """        
-        if acc_type == "obj":
-            return wrap_obj_acc(self.grid_num, 
-                                self.bbox_num, 
-                                self.class_num)
-        elif acc_type == "iou":
-            return wrap_iou_acc(self.grid_num, 
-                                self.bbox_num, 
-                                self.class_num)
-        elif acc_type == "class":
-            return wrap_class_acc(self.grid_num, 
-                                  self.bbox_num,
-                                  self.class_num)
+        metrics_list = []     
+        if "obj" in acc_type:
+            metrics_list.append(
+                wrap_obj_acc(
+                    self.grid_num, 
+                    self.bbox_num, 
+                    self.class_num))
+        if "iou" in acc_type:
+            metrics_list.append(
+                wrap_iou_acc(
+                    self.grid_num, 
+                    self.bbox_num, 
+                    self.class_num))
+        if "class" in acc_type:
+            metrics_list.append(
+                wrap_class_acc(
+                    self.grid_num, 
+                    self.bbox_num, 
+                    self.class_num))
+        return metrics_list
