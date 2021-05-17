@@ -633,6 +633,7 @@ def vis_img(img,
             *label_datas,
             class_names=[],
             conf_threshold=0.5,
+            show_conf=True,
             nms_mode=0,
             nms_threshold=0.5,
             nms_sigma=0.5,
@@ -659,6 +660,7 @@ def vis_img(img,
             containing all label names.
         conf_threshold: A float,
             threshold for quantizing output.
+        show_conf: A boolean, whether to show confidence score.
         nms_mode: An integer,
             0: Not use NMS.
             1: Use NMS.
@@ -684,20 +686,30 @@ def vis_img(img,
             This argument only works
             when the connection is specified as "tail".
         point_radius: 5.
-        point_color: "r".
+        point_color: A string or list, defalut: "r".
         box_linewidth: 2.
-        box_color: "auto".
-        text_color: "w".
-        text_padcolor: "auto".
+        box_color: A string or list, defalut: "auto".
+        text_color: A string or list, defalut: "w".
+        text_padcolor: A string or list, defalut: "auto".
         text_fontsize: 12.
     """
+    class_num = len(class_names)
+
+    if isinstance(point_color, str):
+        point_color = [point_color]*class_num
     if box_color == "auto":
         box_color = point_color
     if text_padcolor == "auto":
         text_padcolor = point_color
+    if isinstance(box_color, str):
+        box_color = [box_color]*class_num
+    if isinstance(text_color, str):
+        text_color = [text_color]*class_num
+    if isinstance(text_padcolor, str):
+        text_padcolor = [text_padcolor]*class_num
+
 
     nimg = np.copy(img)
-    class_num = len(class_names)
 
     xywhcp = decode(*label_datas,
                     class_num=class_num,
@@ -728,28 +740,32 @@ def vis_img(img,
         w = xywhc[i][2]*nimg.shape[1]
         h = xywhc[i][3]*nimg.shape[0]
 
-        label = class_names[prob[i].argmax()]
-        conf = xywhc[i][4]*prob[i].max()
+        label_id = prob[i].argmax()
+        label = class_names[label_id]
 
         point_min = int(x - w/2), int(y - h/2)
         # point_max = int(x + w/2), int(y + h/2)
 
         cir = Circle((x,y),
                      radius=point_radius,
-                     color=point_color)
+                     color=point_color[label_id])
         
         rect = Rectangle(point_min,
-                         w,h,
+                         w, h,
                          linewidth=box_linewidth,
-                         edgecolor=box_color,
+                         edgecolor=box_color[label_id],
                          facecolor="none")
-        text = "%s:%.2f" % (label, conf)
+        if show_conf:
+            conf = xywhc[i][4]*prob[i][label_id]
+            text = "%s:%.2f" % (label, conf)
+        else:
+            text = label
         if text_fontsize > 0:
             ax.text(*point_min,
                     text,
-                    color=text_color,
+                    color=text_color[label_id],
                     bbox=dict(boxstyle=BoxStyle.Square(pad=0.2),
-                            color=text_padcolor),
+                              color=text_padcolor[label_id]),
                     fontsize=text_fontsize,
                     )
 

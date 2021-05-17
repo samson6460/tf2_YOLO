@@ -74,5 +74,5 @@ def wrap_class_acc(grid_num, bbox_num, class_num):
 
         total = tf.reduce_sum(pred_obj_mask)
 
-        return tf.reduce_sum(equal_mask)/total
+        return tf.reduce_sum(equal_mask)/(total + epsilon)
     return class_acc

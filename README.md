@@ -6,7 +6,7 @@ The truth may be that the model only look once, but you implemented it and tried
 
 Before you go crazy, you must try this repo.
 
-**tf2_YOLO** is a implementation of YOLOv1 to YOLOv3 using Tensorflow 2.X after comprehending 3 papers of YOLO:
+**tf2_YOLO** is my implementation of YOLOv1 to YOLOv3 using Tensorflow 2.X after delving into 3 papers of YOLO:
 
 **YOLOv1**: You Only Look Once: Unified, Real-Time Object Detection by Joseph Redmon, Santosh Divvala, Ross Girshick, Ali Farhadi (https://arxiv.org/abs/1506.02640).
 
@@ -28,6 +28,9 @@ Most importantly, the repo is written in Python and Tensorflow, so you can easil
 - [tf2_YOLO](#tf2_yolo)
 - [Table of Contents](#table-of-contents)
 - [Installation](#installation)
+- [Sample applications](#sample-applications)
+  - [Raccoon detection](#raccoon-detection)
+  - [Blood cell detection](#blood-cell-detection)
 - [Usage](#usage)
   - [1. Create YOLO class](#1-create-yolo-class)
   - [2. Read file](#2-read-file)
@@ -48,6 +51,24 @@ Most importantly, the repo is written in Python and Tensorflow, so you can easil
     
 2. Install dependent packages: 
     ```pip install -r requirements.txt```
+
+# Sample applications
+
+## Raccoon detection
+
+![result](images/result_raccoon.png)
+
+[Open sample code in Colab](https://colab.research.google.com/drive/1c-wIrMN9K-ohR4zrPqvGTeot64FIM-le?usp=sharing)
+
+*dataset from: https://github.com/datitran/raccoon_dataset*
+
+## Blood cell detection
+
+![result](images/result_blood_cell.png)
+
+[Open sample code in Colab](https://colab.research.google.com/drive/1JKqcdoEHgxqPCLkF7igFv5dRckpE9pDx?usp=sharing)
+
+*dataset from: https://github.com/Shenggan/BCCD_Dataset.git*
 
 # Usage
 
@@ -78,12 +99,15 @@ yolo = yolov3.YOLO(input_shape, class_names)
 
 ## 2. Read file
 
+***Read as array(read into RAM)***
 ```
 img, label = yolo.read_file_to_dataset(
     img_path, 
     label_path)
 ```
 or
+
+***Read as tf.Sequence***
 ```
 seq = yolo.read_file_to_sequence(
     img_path, 

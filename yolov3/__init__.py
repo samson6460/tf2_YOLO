@@ -295,6 +295,7 @@ class Yolo(object):
 
     def vis_img(self, img, *label_datas,
                 conf_threshold=0.5,
+                show_conf=True,
                 nms_mode=0,
                 nms_threshold=0.5,
                 nms_sigma=0.5,
@@ -307,6 +308,7 @@ class Yolo(object):
                 Multiple label data can be given at once.
             conf_threshold: A float,
                 threshold for quantizing output.
+            show_conf: A boolean, whether to show confidence score.
             nms_mode: An integer,
                 0: Not use NMS.
                 1: Use NMS.
@@ -329,19 +331,20 @@ class Yolo(object):
             fig_ax: (matplotlib.pyplot.figure, matplotlib.pyplot.axes),
                 This argument only works
                 when the connection is specified as "tail".
-            point_radius: 5
-            point_color: "r"
-            box_linewidth: 2
-            box_color: "auto"
-            text_color: "w"
-            text_padcolor: "auto"
-            text_fontsize: 12
+            point_radius: 5.
+            point_color: A string or list, defalut: "r".
+            box_linewidth: 2.
+            box_color: A string or list, defalut: "auto".
+            text_color: A string or list, defalut: "w".
+            text_padcolor: A string or list, defalut: "auto".
+            text_fontsize: 12.
         """
         return tools.vis_img(
             img, 
             *label_datas, 
             class_names=self.class_names,
             conf_threshold=conf_threshold,
+            show_conf=show_conf,
             nms_mode=nms_mode,  
             nms_threshold=nms_threshold,
             nms_sigma=nms_sigma,                     
