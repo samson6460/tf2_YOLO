@@ -19,7 +19,6 @@ from math import ceil
 import threading
 from imgaug.augmentables.bbs import BoundingBox, BoundingBoxesOnImage
 from tensorflow.keras.utils import Sequence
-import tensorflow as tf
 import pandas as pd
 
 epsilon = 1e-07
@@ -639,6 +638,7 @@ def vis_img(img,
             nms_sigma=0.5,
             version=1, 
             figsize=None,
+            dpi=None,
             axis="off",
             savefig_path=None,
             connection=None,
@@ -673,6 +673,9 @@ def vis_img(img,
             specifying the decode method, yolov1、v2 or v3.
         figsize: (float, float), optional, default: None
             width, height in inches. If not provided, defaults to [6.4, 4.8].
+        dpi: float, default: rcParams["figure.dpi"] (default: 100.0)
+            The resolution of the figure in dots-per-inch.
+            Set as 1.325, then 1 inch will be 1 dot. 
         axis: bool or str
             If a bool, turns axis lines and labels on or off.
             If a string, possible values are:
@@ -729,7 +732,7 @@ def vis_img(img,
     if connection == "tail":
         fig, ax = fig_ax
     else:
-        fig, ax = plt.subplots(1, figsize=figsize)
+        fig, ax = plt.subplots(1, figsize=figsize, dpi=dpi)
         ax.imshow(img)
         ax.axis(axis)
 
@@ -772,7 +775,7 @@ def vis_img(img,
         ax.add_patch(cir)
         ax.add_patch(rect)
     if savefig_path is not None:
-        plt.savefig(savefig_path, bbox_inches='tight', pad_inches = 0)
+        fig.savefig(savefig_path, bbox_inches='tight', pad_inches = 0)
 
     if connection == "head":
         return fig, ax

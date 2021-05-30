@@ -1,5 +1,7 @@
 # tf2_YOLO
 
+![example](https://img.shields.io/badge/Python-3.x-blue.svg) ![example](https://img.shields.io/badge/Tensorflow-2.x-yellow.svg) ![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)
+
 YOLO, you only look once, wait...are you sure about that??
 
 The truth may be that the model only look once, but you implemented it and tried it thousands of times.
