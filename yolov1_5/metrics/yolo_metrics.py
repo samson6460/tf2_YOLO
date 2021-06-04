@@ -4,14 +4,14 @@ from yolov1_5.losses import cal_iou
 
 epsilon = 1e-07
 
-def wrap_obj_acc(grid_num, bbox_num, class_num):
+def wrap_obj_acc(grid_shape, bbox_num, class_num):
     def obj_acc(y_true, y_pred):
         xywhc_true = tf.reshape(
             y_true[..., :-class_num],
-            (-1, grid_num, grid_num, 1, 5)) # N*S*S*1*5
+            (-1, *grid_shape, 1, 5)) # N*S*S*1*5
         xywhc_pred = tf.reshape(
             y_pred[..., :-class_num],
-            (-1, grid_num, grid_num, bbox_num, 5)) # N*S*S*B*5
+            (-1, *grid_shape, bbox_num, 5)) # N*S*S*B*5
         
         c_true = xywhc_true[..., 4] # N*S*S*1
         c_pred = tf.reduce_max(xywhc_pred[..., 4], # N*S*S*B
@@ -24,21 +24,21 @@ def wrap_obj_acc(grid_num, bbox_num, class_num):
     return obj_acc
 
 
-def wrap_iou_acc(grid_num, bbox_num, class_num):
+def wrap_iou_acc(grid_shape, bbox_num, class_num):
     def iou_acc(y_true, y_pred):
         xywhc_true = tf.reshape(
             y_true[..., :-class_num],
-            (-1, grid_num, grid_num, 1, 5)) # N*S*S*1*5
+            (-1, *grid_shape, 1, 5)) # N*S*S*1*5
         xywhc_pred = tf.reshape(
             y_pred[..., :-class_num],
-            (-1, grid_num, grid_num, bbox_num, 5)) # N*S*S*B*5
+            (-1, *grid_shape, bbox_num, 5)) # N*S*S*B*5
 
         pred_obj_mask = tf.cast(xywhc_pred[..., 4] >= 0.5,
                                 dtype=y_true.dtype) # N*S*S*B
         has_obj_mask = xywhc_true[..., 4] # N*S*S*1
         has_obj_mask = has_obj_mask*pred_obj_mask
         
-        iou_scores = cal_iou(xywhc_true, xywhc_pred, grid_num) # N*S*S*B
+        iou_scores = cal_iou(xywhc_true, xywhc_pred, grid_shape) # N*S*S*B
         iou_scores = iou_scores*has_obj_mask # N*S*S*B
 
         total = tf.reduce_sum(pred_obj_mask)
@@ -47,14 +47,14 @@ def wrap_iou_acc(grid_num, bbox_num, class_num):
     return iou_acc
 
 
-def wrap_class_acc(grid_num, bbox_num, class_num):
+def wrap_class_acc(grid_shape, bbox_num, class_num):
     def class_acc(y_true, y_pred):
         xywhc_true = tf.reshape(
             y_true[..., :-class_num],
-            (-1, grid_num, grid_num, 5)) # N*S*S*5
+            (-1, *grid_shape, 5)) # N*S*S*5
         xywhc_pred = tf.reshape(
             y_pred[..., :-class_num],
-            (-1, grid_num, grid_num, bbox_num, 5)) # N*S*S*B*5
+            (-1, *grid_shape, bbox_num, 5)) # N*S*S*B*5
 
         pred_obj_mask = tf.reduce_max(xywhc_pred[..., 4], # N*S*S*B
                                       axis=-1) # N*S*S

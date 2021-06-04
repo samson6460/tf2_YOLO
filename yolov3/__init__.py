@@ -4,7 +4,7 @@
 """Yolo V3.
 """
 
-__version__ = "3.1"
+__version__ = "4.0"
 __author__ = "Samson Woof"
 
 from os import path
@@ -66,11 +66,12 @@ class Yolo(object):
     Attributes:
         input_shape
         class_names
-        grid_num: An integer,
-            the input image will be divided into 
-            the square of this grid number.
+        grid_shape: A tuple or list of integers(heights, widths), 
+            input images will be divided into 
+            grid_shape[0] x grid_shape[1] grids.
         abox_num: An integer, the number of anchor boxes.
         class_num: An integer, the number of all classes.
+        fpn_layers: An integer, the number of fpn layers.
         anchors: 2D array like, prior anchor boxes.
         model: A tf.keras Model.
         file_names: A list of string
@@ -81,7 +82,7 @@ class Yolo(object):
                  input_shape=(416, 416, 3),
                  class_names=[]):
         self.input_shape = input_shape
-        self.grid_num = input_shape[0]//32
+        self.grid_shape = input_shape[0]//32, input_shape[1]//32
         self.abox_num = 3
         self.class_names = class_names
         self.class_num = len(class_names)
@@ -159,7 +160,7 @@ class Yolo(object):
         if pretrained_weights is not None:
             self.model.load_weights(pretrained_weights)
         self.anchors = anchors
-        self.grid_num = self.model.output[0].shape[1]
+        self.grid_shape = self.model.output[0].shape[1:3]
         self.fpn_layers = len(self.model.output)
         self.abox_num = len(self.anchors)//self.fpn_layers
 
@@ -200,17 +201,20 @@ class Yolo(object):
                 specifying the number of threads to read files.
 
         Returns:
-            A tuple: (img, label_list)(ndarray, list),
+            A tuple: (img: ndarray, label_list: list),
             label_list contains the label of all FPN layers.
-            - shape of img: (batch_size, img_height, img_width, channel)
-            - shape of label: (batch_size, grid_num, grid_num, info)
+            - shape of img: (batch_size, img_heights, img_widths, channels)
+            - shape of label: (batch_size, grid_heights, grid_widths, info)
         """
+        grid_amp = 2**(self.fpn_layers - 1)
+        grid_shape = (self.grid_shape[0]*grid_amp,
+                      self.grid_shape[1]*grid_amp)
         img_data, label_data, path_list = tools.read_file(
             img_path=img_path, 
             label_path=label_path,
             label_format=label_format,
             size=self.input_shape[:2], 
-            grid_num=self.grid_num*(2**(self.fpn_layers - 1)),
+            grid_shape=grid_shape,
             class_names=self.class_names,
             rescale=rescale,
             preprocessing=preprocessing,
@@ -267,11 +271,14 @@ class Yolo(object):
 
         Returns:
             A tf.Sequence: 
-                Sequence[i]: (img, label_list)(ndarray, list),
+                Sequence[i]: (img: ndarray, label_list: list),
             label_list contains the label of all FPN layers.
-            - shape of img: (batch_size, img_height, img_width, channel)
-            - shape of label: (batch_size, grid_num, grid_num, info)
+            - shape of img: (batch_size, img_heights, img_widths, channels)
+            - shape of label: (batch_size, grid_heights, grid_widths, info)
         """
+        grid_amp = 2**(self.fpn_layers - 1)
+        grid_shape = (self.grid_shape[0]*grid_amp,
+                      self.grid_shape[1]*grid_amp)
         seq = tools.YoloDataSequence(
             img_path=img_path,
             label_path=label_path,
@@ -280,7 +287,7 @@ class Yolo(object):
             size=self.input_shape[:2],
             rescale=rescale,
             preprocessing=preprocessing,
-            grid_num=self.grid_num*(2**(self.fpn_layers - 1)),
+            grid_shape=grid_shape,
             class_names=self.class_names,
             augmenter=augmenter,
             shuffle=shuffle,
@@ -303,8 +310,9 @@ class Yolo(object):
         """Visualize the images and annotaions by pyplot.
 
         Args:
-            img: A ndarray of shape(img_height, img_width, channel).
-            *label_datas: Ndarrays of shape(grid_num, grid_num, info).
+            img: A ndarray of shape(img_heights, img_widths, channels).
+            *label_datas: Ndarrays,
+                shape: (grid_heights, grid_widths, info).
                 Multiple label data can be given at once.
             conf_threshold: A float,
                 threshold for quantizing output.
@@ -392,9 +400,12 @@ class Yolo(object):
         
         loss_list = []
         for fpn_id in range(self.fpn_layers):
+            grid_amp = 2**(fpn_id)
+            grid_shape = (self.grid_shape[0]*grid_amp,
+                          self.grid_shape[1]*grid_amp)
             anchors_id = self.abox_num*fpn_id
             loss_list.append(wrap_yolo_loss(
-                grid_num=self.grid_num*(2**fpn_id),
+                grid_shape=grid_shape,
                 bbox_num=self.abox_num, 
                 class_num=self.class_num,
                 anchors=self.anchors[
@@ -422,23 +433,32 @@ class Yolo(object):
         metrics_list = [[] for _ in range(self.fpn_layers)]
         if "obj" in acc_type:
             for fpn_id in range(self.fpn_layers):
+                grid_amp = 2**(fpn_id)
+                grid_shape = (self.grid_shape[0]*grid_amp,
+                              self.grid_shape[1]*grid_amp)
                 metrics_list[fpn_id].append(
                     wrap_obj_acc(
-                        self.grid_num*(2**fpn_id),
+                        grid_shape,
                         self.abox_num, 
                         self.class_num))
         if "iou" in acc_type:
             for fpn_id in range(self.fpn_layers):
+                grid_amp = 2**(fpn_id)
+                grid_shape = (self.grid_shape[0]*grid_amp,
+                              self.grid_shape[1]*grid_amp)
                 metrics_list[fpn_id].append(
                     wrap_iou_acc(
-                        self.grid_num*(2**fpn_id),
+                        grid_shape,
                         self.abox_num, 
                         self.class_num))
         if "class" in acc_type:
             for fpn_id in range(self.fpn_layers):
+                grid_amp = 2**(fpn_id)
+                grid_shape = (self.grid_shape[0]*grid_amp,
+                              self.grid_shape[1]*grid_amp)
                 metrics_list[fpn_id].append(
                     wrap_class_acc(
-                        self.grid_num*(2**fpn_id),
+                        grid_shape,
                         self.abox_num, 
                         self.class_num))
         return metrics_list

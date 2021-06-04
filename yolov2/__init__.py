@@ -4,7 +4,7 @@
 """Yolo V2.
 """
 
-__version__ = "3.1"
+__version__ = "4.0"
 __author__ = "Samson Woof"
 
 from os import path
@@ -42,9 +42,9 @@ class Yolo(object):
     Attributes:
         input_shape
         class_names
-        grid_num: An integer,
-            the input image will be divided into 
-            the square of this grid number.
+        grid_shape: A tuple or list of integers(heights, widths), 
+            input images will be divided into 
+            grid_shape[0] x grid_shape[1] grids.
         abox_num: An integer, the number of anchor boxes.
         class_num: An integer, the number of all classes.
         anchors: 2D array like, prior anchor boxes.
@@ -57,7 +57,7 @@ class Yolo(object):
                  input_shape=(416, 416, 3),
                  class_names=[]):
         self.input_shape = input_shape
-        self.grid_num = input_shape[0]//32
+        self.grid_shape = input_shape[0]//32, input_shape[1]//32
         self.abox_num = 5
         self.class_names = class_names
         self.class_num = len(class_names)
@@ -101,7 +101,7 @@ class Yolo(object):
             self.model.load_weights(pretrained_weights)
         self.anchors = anchors
         self.abox_num = len(anchors)
-        self.grid_num = self.model.output.shape[1]
+        self.grid_shape = self.model.output.shape[1:3]
 
     def read_file_to_dataset(
         self, img_path=None, label_path=None,
@@ -141,15 +141,15 @@ class Yolo(object):
 
         Returns:
             A tuple of 2 ndarrays, (img, label),
-            - shape of img: (batch_size, img_height, img_width, channel)
-            - shape of label: (batch_size, grid_num, grid_num, info)
+            - shape of img: (batch_size, img_heights, img_widths, channels)
+            - shape of label: (batch_size, grid_heights, grid_widths, info)
         """
         img_data, label_data, path_list = tools.read_file(
             img_path=img_path, 
             label_path=label_path,
             label_format=label_format,
             size=self.input_shape[:2], 
-            grid_num=self.grid_num,
+            grid_shape=self.grid_shape,
             class_names=self.class_names,
             rescale=rescale,
             preprocessing=preprocessing,
@@ -202,8 +202,8 @@ class Yolo(object):
         Returns:
             A tf.Sequence: 
                 Sequence[i]: (img, label)
-            - shape of img: (batch_size, img_height, img_width, channel)
-            - shape of label: (batch_size, grid_num, grid_num, info)
+            - shape of img: (batch_size, img_heights, img_widths, channels)
+            - shape of label: (batch_size, grid_heights, grid_widths, info)
         """
         seq = tools.YoloDataSequence(
             img_path=img_path,
@@ -213,7 +213,7 @@ class Yolo(object):
             size=self.input_shape[:2],
             rescale=rescale,
             preprocessing=preprocessing,
-            grid_num=self.grid_num,
+            grid_shape=self.grid_shape,
             class_names=self.class_names,
             augmenter=augmenter,
             shuffle=shuffle,
@@ -234,8 +234,9 @@ class Yolo(object):
         """Visualize the images and annotaions by pyplot.
 
         Args:
-            img: A ndarray of shape(img_height, img_width, channel).
-            label_data: A ndarray of shape(grid_num, grid_num, info).
+            img: A ndarray of shape(img_heights, img_widths, channels).
+            label_data: A ndarray,
+                shape: (grid_heights, grid_widths, info).
             conf_threshold: A float,
                 threshold for quantizing output.
             show_conf: A boolean, whether to show confidence score.
@@ -307,7 +308,7 @@ class Yolo(object):
             loss_weight_list.append(loss_weight["prob"])
             loss_weight = loss_weight_list
         return wrap_yolo_loss(
-            grid_num=self.grid_num,
+            grid_shape=self.grid_shape,
             bbox_num=self.abox_num, 
             class_num=self.class_num,
             anchors=self.anchors,
@@ -331,19 +332,19 @@ class Yolo(object):
         if "obj" in acc_type:
             metrics_list.append(
                 wrap_obj_acc(
-                    self.grid_num, 
+                    self.grid_shape, 
                     self.abox_num, 
                     self.class_num))
         if "iou" in acc_type:
             metrics_list.append(
                 wrap_iou_acc(
-                    self.grid_num, 
+                    self.grid_shape, 
                     self.abox_num, 
                     self.class_num))
         if "class" in acc_type:
             metrics_list.append(
                 wrap_class_acc(
-                    self.grid_num, 
+                    self.grid_shape, 
                     self.abox_num, 
                     self.class_num))
         return metrics_list

@@ -1,13 +1,15 @@
 import tensorflow as tf
+import numpy as np
 
 epsilon = 1e-07
 
 
-def cal_iou(xywh_true, xywh_pred, grid_num):
-    xy_true = xywh_true[..., 0:2]/grid_num # N*S*S*1*2
+def cal_iou(xywh_true, xywh_pred, grid_shape):
+    grid_shape = np.array(grid_shape[::-1])
+    xy_true = xywh_true[..., 0:2]/grid_shape # N*S*S*1*2
     wh_true = xywh_true[..., 2:4]
 
-    xy_pred = xywh_pred[..., 0:2]/grid_num # N*S*S*B*2
+    xy_pred = xywh_pred[..., 0:2]/grid_shape # N*S*S*B*2
     wh_pred = xywh_pred[..., 2:4]
     
     half_xy_true = wh_true / 2.
@@ -32,7 +34,7 @@ def cal_iou(xywh_true, xywh_pred, grid_num):
     return iou_scores
 
 
-def wrap_yolo_loss(grid_num,
+def wrap_yolo_loss(grid_shape,
                    bbox_num,
                    class_num,
                    anchors=None,
@@ -50,15 +52,15 @@ def wrap_yolo_loss(grid_num,
 
         y_true = tf.reshape(
             y_true,
-            (-1, grid_num, grid_num, 1, 5 + class_num)) # N*S*S*1*(5+C)
+            (-1, *grid_shape, 1, 5 + class_num)) # N*S*S*1*(5+C)
         y_pred = tf.reshape(
             y_pred,
-            (-1, grid_num, grid_num, bbox_num, 5 + class_num)) # N*S*S*B*(5+C)
+            (-1, *grid_shape, bbox_num, 5 + class_num)) # N*S*S*B*(5+C)
 
         xywh_true = y_true[..., :4] # N*S*S*1*4
         xywh_pred = y_pred[..., :4] # N*S*S*B*4
 
-        iou_scores = cal_iou(xywh_true, xywh_pred, grid_num) # N*S*S*B
+        iou_scores = cal_iou(xywh_true, xywh_pred, grid_shape) # N*S*S*B
 
         response_mask = tf.one_hot(tf.argmax(iou_scores, axis=-1),
                                    depth=bbox_num,

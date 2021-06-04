@@ -63,7 +63,7 @@ def read_file(img_path=None,
               label_path=None,
               label_format="labelimg",
               size=(448, 448),
-              grid_num=7,
+              grid_shape=(7, 7),
               class_names=[],
               rescale=1/255,
               preprocessing=None,
@@ -84,9 +84,9 @@ def read_file(img_path=None,
             one of "labelimg" and "labelme".
         size: A tuple of 2 integer,
             shape of output image(heights, widths).
-        grid_num: An integer, specifying
-            input images will be divided into 
-            grid_num x grid_num grids.
+        grid_shape: A tuple or list of integers(heights, widths), 
+            specifying input images will be divided into 
+            grid_shape[0] x grid_shape[1] grids.
         class_names: A list of string,
             containing all label names.
         rescale: A float or None,
@@ -107,8 +107,8 @@ def read_file(img_path=None,
 
     Returns:
         A tuple of 2 ndarrays, (img, label),
-        shape of img: (sample_num, img_height, img_width, channel)
-        shape of label: (sample_num, grid_num, grid_num, info)
+        shape of img: (sample_num, img_heights, img_widths, channels)
+        shape of label: (sample_num, grid_heights, grid_widths, info)
     """
     def _process_paths(path_list, aug_times):
         path_list = np.array(path_list)
@@ -123,11 +123,11 @@ def read_file(img_path=None,
         return path_list
     
     def _encode_to_array(img, bbs,
-                         grid_num, pos, name, labels):
+                         grid_shape, pos, name, labels):
         img_data[pos] = img
 
-        grid_height = img.shape[0]/grid_num
-        grid_width = img.shape[1]/grid_num
+        grid_height = img.shape[0]/grid_shape[0]
+        grid_width = img.shape[1]/grid_shape[1]
         img_height = img.shape[0]
         img_width = img.shape[1]
 
@@ -140,7 +140,7 @@ def read_file(img_path=None,
             x_i = int(x//grid_width) #Grid x coordinate
             y_i = int(y//grid_height) #Grid y coordinate
 
-            if x_i < grid_num and y_i < grid_num:
+            if x_i < grid_shape[1] and y_i < grid_shape[0]:
                 if label_data[pos, y_i, x_i, 4] == 1: 
                     #Detect whether objects overlap
                     print("Notice! Repeat!:", name, y_i, x_i)
@@ -157,15 +157,15 @@ def read_file(img_path=None,
                 label_data[pos, y_i, x_i, 5 + labels[label_i]] = 1
 
     def _imgaug_to_array(img, bbs,
-            grid_num, pos, name, labels):
+            grid_shape, pos, name, labels):
         _encode_to_array(img, bbs,
-            grid_num, pos, name, labels)
+            grid_shape, pos, name, labels)
         if augmenter is not None:
             for aug_i in range(1, aug_times):
                 img_aug, bbs_aug = augmenter(image=img,
                                              bounding_boxes=bbs)
                 _encode_to_array(img_aug, bbs_aug,
-                    grid_num, pos + aug_i, name, labels)
+                    grid_shape, pos + aug_i, name, labels)
 
     def _read_labelimg(_path_list, _pos):
         for _path_list_i, name in enumerate(_path_list):
@@ -197,7 +197,7 @@ def read_file(img_path=None,
                                            y2=ymax))
             bbs = BoundingBoxesOnImage(bbs, shape=img.shape)
             _imgaug_to_array(img, bbs,
-                grid_num, pos, name, labels)
+                grid_shape, pos, name, labels)
 
     def _read_labelme(_path_list, _pos):
         for _path_list_i, name in enumerate(_path_list):
@@ -233,7 +233,7 @@ def read_file(img_path=None,
                                            y2=point[1, 1]))
             bbs = BoundingBoxesOnImage(bbs, shape=img.shape)
             _imgaug_to_array(img, bbs,
-                grid_num, pos, name, labels)
+                grid_shape, pos, name, labels)
     if (label_format == "labelme" 
         and (img_path is None or label_path is None)):
         if label_path is None:
@@ -253,7 +253,7 @@ def read_file(img_path=None,
     img_data = np.empty((path_list_len*aug_times,
                            *size, 3))
     label_data = np.zeros((path_list_len*aug_times,
-                           grid_num, grid_num,
+                           *grid_shape,
                            5 + class_num))
 
     threads = []
@@ -318,9 +318,9 @@ class YoloDataSequence(Sequence):
             If None, no scaled.
         preprocessing: A function of data preprocessing,
             (e.g. noralization, shape manipulation, etc.)
-        grid_num: An integer, specifying
-            input images will be divided into 
-            grid_num x grid_num grids.
+        grid_shape: A tuple or list of integers(heights, widths), 
+            specifying input images will be divided into 
+            grid_shape[0] x grid_shape[1] grids.
         class_names: A list of string,
             containing all label names.
         augmenter: A `imgaug.augmenters.meta.Sequential` instance.
@@ -342,7 +342,7 @@ class YoloDataSequence(Sequence):
                  size=(448, 448),
                  rescale=1/255,
                  preprocessing=None,
-                 grid_num=7,
+                 grid_shape=(7, 7),
                  class_names=[],
                  augmenter=None,
                  shuffle=True,
@@ -356,7 +356,7 @@ class YoloDataSequence(Sequence):
         self.size = size
         self.rescale = rescale
         self.preprocessing = preprocessing
-        self.grid_num = grid_num
+        self.grid_shape = grid_shape
         self.class_names = class_names
         self.class_num = len(class_names)
         self.augmenter = augmenter
@@ -390,11 +390,11 @@ class YoloDataSequence(Sequence):
         if idx >= self.__len__():
             raise IndexError("Sequence index out of range")
         def _encode_to_array(img, bbs,
-                             grid_num, pos, labels):
+                             grid_shape, pos, labels):
             img_data[pos] = img
 
-            grid_height = img.shape[0]/grid_num
-            grid_width = img.shape[1]/grid_num
+            grid_height = img.shape[0]/grid_shape[0]
+            grid_width = img.shape[1]/grid_shape[1]
             img_height = img.shape[0]
             img_width = img.shape[1]
 
@@ -407,7 +407,7 @@ class YoloDataSequence(Sequence):
                 x_i = int(x//grid_width) #Grid x coordinate
                 y_i = int(y//grid_height) #Grid y coordinate
 
-                if x_i < grid_num and y_i < grid_num:
+                if x_i < grid_shape[1] and y_i < grid_shape[0]:
                     label_data[pos, y_i, x_i, 0] = (
                         x%grid_width/grid_width)
                     label_data[pos, y_i, x_i, 1] = (
@@ -420,16 +420,16 @@ class YoloDataSequence(Sequence):
                     label_data[pos, y_i, x_i, 5 + labels[label_i]] = 1
         
         def _imgaug_to_array(img, bbs,
-                grid_num, pos, labels):
+                grid_shape, pos, labels):
             if self.augmenter is None:
                 _encode_to_array(img, bbs,
-                    grid_num, pos, labels)
+                    grid_shape, pos, labels)
             else:
                 img_aug, bbs_aug = self.augmenter(
                     image=img,
                     bounding_boxes=bbs)
                 _encode_to_array(img_aug, bbs_aug,
-                    grid_num, pos, labels)
+                    grid_shape, pos, labels)
 
         def _read_labelimg(_path_list, _pos):
             for i, name in enumerate(_path_list):
@@ -461,7 +461,7 @@ class YoloDataSequence(Sequence):
                                                y2=ymax))
                 bbs = BoundingBoxesOnImage(bbs, shape=img.shape)
                 _imgaug_to_array(img, bbs,
-                    self.grid_num, pos, labels)
+                    self.grid_shape, pos, labels)
 
         def _read_labelme(_path_list, _pos):
             for i, name in enumerate(_path_list):
@@ -497,7 +497,7 @@ class YoloDataSequence(Sequence):
                                                y2=point[1, 1]))
                 bbs = BoundingBoxesOnImage(bbs, shape=img.shape)
                 _imgaug_to_array(img, bbs,
-                    self.grid_num, pos, labels)
+                    self.grid_shape, pos, labels)
 
         total_len = len(self.path_list)
         if (idx + 1)*self.batch_size > total_len:
@@ -506,7 +506,7 @@ class YoloDataSequence(Sequence):
             batch_size = self.batch_size
         img_data = np.empty((batch_size, *self.size, 3))
         label_data = np.zeros((batch_size,
-                               self.grid_num, self.grid_num,
+                               *self.grid_shape,
                                5 + self.class_num))
         start_idx = idx*self.batch_size
         end_idx = (idx + 1)*self.batch_size
@@ -573,7 +573,8 @@ def decode(*label_datas,
     """Decode the prediction from yolo model.
 
     Args:
-        *label_datas: Ndarrays of shape(grid_num, grid_num, info).
+        *label_datas: Ndarrays,
+            shape: (grid_heights, grid_widths, info).
             Multiple label data can be given at once.
         class_num:  An integer.
             containing all label names.
@@ -584,17 +585,16 @@ def decode(*label_datas,
     """
     output = []
     for label_data in label_datas:
-        grid_num = label_data.shape[0]
+        grid_shape = label_data.shape[:2]
         if version == 1:
             bbox_num = (label_data.shape[-1] - class_num)//5
             xywhc = np.reshape(label_data[..., :-class_num],
-                               (grid_num, grid_num,
-                               bbox_num, 5))
+                               (*grid_shape, bbox_num, 5))
         elif version == 2 or version == 3:
             bbox_num = label_data.shape[-1]//(5 + class_num)
             label_data = np.reshape(label_data,
-                                    (grid_num, grid_num,
-                                    bbox_num, 5 + class_num))
+                                    (*grid_shape,
+                                     bbox_num, 5 + class_num))
             xywhc = label_data[..., :-class_num]
         else:
             raise ValueError("Invalid version: %s" % version)   
@@ -613,8 +613,8 @@ def decode(*label_datas,
             h_reg = xywhc[y_i, x_i, box_i, 3]
             conf = xywhc[y_i, x_i, box_i, 4]
 
-            x = (x_i + x_reg)/grid_num
-            y = (y_i + y_reg)/grid_num
+            x = (x_i + x_reg)/grid_shape[1]
+            y = (y_i + y_reg)/grid_shape[0]
             
             w = w_reg
             h = h_reg
@@ -653,8 +653,9 @@ def vis_img(img,
     """Visualize the images and annotaions by pyplot.
 
     Args:
-        img: A ndarray of shape(img_height, img_width, channel).
-        *label_datas: Ndarrays of shape(grid_num, grid_num, info).
+        img: A ndarray of shape(img_heights, img_widths, channels).
+        *label_datas: Ndarrays,
+            shape: (grid_heights, grid_widths, info).
             Multiple label data can be given at once.
         class_names: A list of string,
             containing all label names.
@@ -787,7 +788,8 @@ def get_class_weight(label_data, method="alpha"):
     """Get the weight of the category.
 
     Args:
-        label_data: A ndarray of shape(batch_size, grid_num, grid_num, info).
+        label_data: A ndarray,
+        shape: (batch_size, grid_heights, grid_widths, info).
         method: A string,
             one of "alpha"、"log"、"effective"、"binary".
 
@@ -949,10 +951,10 @@ def create_score_mat(y_trues, *y_preds,
 
     Args:
         y_trues: A tensor or array-like of shape:
-            (batch, grid_num, grid_num, info_num),
+            (batch, grid_heights, grid_widths, info_num),
             ground truth label.
         *y_preds: A tensor or array-like of shape:
-            (batch, grid_num, grid_num, info_num),
+            (batch, grid_heights, grid_widths, info_num),
             prediction from model.
             Multiple prediction can be given at once.
         class_names: A list of string,
@@ -985,6 +987,7 @@ def create_score_mat(y_trues, *y_preds,
 
     denom_array = np.zeros((class_num, 2))
     TP_array = np.zeros((class_num, 2))
+    det_counts = np.zeros((class_num,), dtype="int")
 
     for i in range(len(y_trues)):
         y_true = y_trues[i]
@@ -1026,6 +1029,7 @@ def create_score_mat(y_trues, *y_preds,
             num_PP = len(xywhc_pred_class)
             num_P = len(xywhc_true_class)
             denom_array[class_i] += (num_PP, num_P)
+            det_counts[class_i] += num_PP
 
             if len(xywhc_true_class) > 0 and len(xywhc_pred_class) > 0:
                 xywhc_true_class = np.reshape(
@@ -1053,6 +1057,8 @@ def create_score_mat(y_trues, *y_preds,
     recall = score_table["recall"]
     F1_score = (2*precision*recall)/(precision + recall)
     score_table["F1-score"] = F1_score
+    score_table["gts"] = denom_array[:, 1].astype("int")
+    score_table["dets"] = det_counts
 
     score_table.index = class_names
 
@@ -1075,7 +1081,8 @@ def array_to_json(path,
             the path to store the json file.
         img_size: A tuple of 2 integers (heights, widths),
             original size of image.
-        *label_datas: Ndarrays of shape(grid_num, grid_num, info).
+        *label_datas: Ndarrays,
+            shape: (grid_heights, grid_widths, info).
             Multiple label data can be given at once.
         class_names: A list, containing all label names.
         conf_threshold: A float,

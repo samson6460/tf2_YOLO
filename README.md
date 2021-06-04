@@ -125,14 +125,14 @@ seq = yolo.read_file_to_sequence(
 ***Returns from YOLOv1、YOLOv2***
 
 A tuple of 2 ndarrays, (img, label),
-- shape of img: (batch_size, img_height, img_width, channel)
-- shape of label: (batch_size, grid_num, grid_num, info)
+- shape of img: (batch_size, img_heights, img_widths, channels)
+- shape of label: (batch_size, grid_heights, grid_widths, info)
 
 ***Returns from YOLOv3***
 
-A tuple: (img, label_list)(ndarray, list), label_list contains the label of all FPN layers.
-- shape of img: (batch_size, img_height, img_width, channel)
-- shape of label: (batch_size, grid_num, grid_num, info)
+A tuple: (img: ndarray, label_list: list), label_list contains the label of all FPN layers.
+- shape of img: (batch_size, img_heights, img_widths, channels)
+- shape of label: (batch_size, grid_heights, grid_widths, info)
 
 
 ---
@@ -253,10 +253,18 @@ yolo.model.compile(optimizer=Adam(lr=1e-4),
 
 ## 7. Train model
 
+***Train with dataset***
 ```
 yolo.model.fit(
     data,
     label,
+    epochs)
+```
+
+***Train with tf.Sequence***
+```
+yolo.model.fit(
+    seq,
     epochs)
 ```
 
@@ -277,7 +285,8 @@ create_score_mat(
     prediction,
     class_names=yolo.class_names,
     nms_mode=2,
-    version)
+    version=1 # or version=2
+    )
 print(create_score_mat)
 ```
 
@@ -301,7 +310,7 @@ create_score_mat(
     prediction[0],
     class_names=yolo.class_names,
     nms_mode=2,
-    version)
+    version=3)
 print(create_score_mat)
 ```
 
