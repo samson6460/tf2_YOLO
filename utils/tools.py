@@ -938,131 +938,15 @@ def soft_nms(xywhcp, nms_threshold=0.5, conf_threshold=0.5, sigma=0.5):
     return xywhcp
 
 
-def create_score_mat(y_trues, *y_preds,
-                     class_names=[],
-                     conf_threshold=0.5,
-                     nms_mode=0,
-                     nms_threshold=0.5,
-                     nms_sigma=0.5,
-                     iou_threshold=0.5,
-                     precision_mode=1,
-                     version=3):
-    """Create score matrix table containing precision、recall and F1-score.
-
-    Args:
-        y_trues: A tensor or array-like of shape:
-            (batch, grid_heights, grid_widths, info_num),
-            ground truth label.
-        *y_preds: A tensor or array-like of shape:
-            (batch, grid_heights, grid_widths, info_num),
-            prediction from model.
-            Multiple prediction can be given at once.
-        class_names: A list of string,
-            containing all label names.
-        conf_threshold: A float,
-            threshold for quantizing output.
-        nms_mode: An integer,
-            0: Not use NMS.
-            1: Use NMS.
-            2: Use Soft-NMS.
-        nms_threshold: A float,
-            threshold for eliminating duplicate boxes.
-        nms_sigma: A float,
-            sigma for Soft-NMS.
-        iou_threshold: A float,
-            threshold for true positive determination.
-        precision_mode: An integer,
-            mode 0: precision = (TPP)/(PP)
-            mode 1: precision = (TP)/(PP-(TPP-TP))
-            (TPP: true predictive positive;
-             TP : true positive;
-             PP : predictive positive)
-        version: An integer,
-            specifying the decode method, yolov1、v2 or v3.  
-
-    Return:
-        A Pandas.Dataframe.
+def create_score_mat(*args, **kwargs):
+    """The location of this function has been changed.
+    Import it using `from utils.measurement import create_score_mat`
     """
-    class_num = len(class_names)
-
-    denom_array = np.zeros((class_num, 2))
-    TP_array = np.zeros((class_num, 2))
-    det_counts = np.zeros((class_num,), dtype="int")
-
-    for i in range(len(y_trues)):
-        y_true = y_trues[i]
-        y_pred = [y_preds[j][i] for j in range(len(y_preds))]
-        
-        xywhcp_true = decode(y_true,
-                             class_num=class_num,
-                             version=version)
-        xywhcp_pred = decode(*y_pred,
-                             class_num=class_num,
-                             threshold=conf_threshold,
-                             version=version)
-        if nms_mode > 0 and len(xywhcp_pred) > 0:
-            if nms_mode == 1:
-                xywhcp_pred = nms(xywhcp_pred, nms_threshold)
-            elif nms_mode == 2:
-                xywhcp_pred = soft_nms(
-                    xywhcp_pred, nms_threshold,
-                    conf_threshold, nms_sigma)
-
-        xywhc_true = xywhcp_true[..., :5]
-        xywhc_pred = xywhcp_pred[..., :5]
-        p_true = xywhcp_true[..., 5:]
-        p_pred = xywhcp_pred[..., 5:]
-        
-        if len(p_true) > 0:
-            class_true = p_true.argmax(axis=-1)
-        else:
-            class_true = p_true
-        if len(p_pred) > 0:
-            class_pred = p_pred.argmax(axis=-1)
-        else:
-            class_pred = p_pred
-
-        for class_i in range(class_num):
-            xywhc_true_class = xywhc_true[class_true==class_i]
-            xywhc_pred_class = xywhc_pred[class_pred==class_i]
-
-            num_PP = len(xywhc_pred_class)
-            num_P = len(xywhc_true_class)
-            denom_array[class_i] += (num_PP, num_P)
-            det_counts[class_i] += num_PP
-
-            if len(xywhc_true_class) > 0 and len(xywhc_pred_class) > 0:
-                xywhc_true_class = np.reshape(
-                    xywhc_true_class, (-1, 1, 5))
-                xywhc_pred_class = np.reshape(
-                    xywhc_pred_class, (1, -1, 5))
-
-                iou_scores = cal_iou(xywhc_true_class, xywhc_pred_class)
-
-                best_ious_true = np.max(iou_scores, axis=1)
-                best_ious_pred = np.max(iou_scores, axis=0) 
-
-                num_TPP = sum(best_ious_pred >= iou_threshold)
-                num_TP = sum(best_ious_true >= iou_threshold)
-                
-                if precision_mode == 1:
-                    denom_array[class_i, 0] -= max((num_TPP - num_TP), 0)
-                    num_TPP = num_TP
-                TP_array[class_i] += (num_TPP, num_TP)
-    score_table = np.true_divide(TP_array, denom_array)
-    score_table = pd.DataFrame(score_table)
-    score_table.columns=["precision", "recall"]
-
-    precision = score_table["precision"]
-    recall = score_table["recall"]
-    F1_score = (2*precision*recall)/(precision + recall)
-    score_table["F1-score"] = F1_score
-    score_table["gts"] = denom_array[:, 1].astype("int")
-    score_table["dets"] = det_counts
-
-    score_table.index = class_names
-
-    return score_table
+    raise ImportError(
+        "The location of this function has been changed. "
+        "Import it using"
+        "`from utils.measurement import create_score_mat`"
+        )
 
 
 def array_to_json(path,

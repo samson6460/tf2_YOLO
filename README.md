@@ -42,6 +42,7 @@ Most importantly, the repo is written in Python and Tensorflow, so you can easil
   - [6. Compile model](#6-compile-model)
   - [7. Train model](#7-train-model)
   - [8. Predict and Evaluate](#8-predict-and-evaluate)
+  - [9. Get PR curve and mAP](#9-get-pr-curve-and-map)
 
 # Installation
 
@@ -172,7 +173,7 @@ anchors = np.sort(anchors, axis=0)[::-1]
 from utils.kmeans import kmeans, iou_dist
 import numpy as np
 
-all_boxes = label[2][label[2][..., 4] == 1][..., 2:4]
+all_boxes = label[-1][label[-1][..., 4] == 1][..., 2:4]
 anchors = kmeans(
     all_boxes,
     n_cluster=9,
@@ -272,7 +273,7 @@ yolo.model.fit(
 
 ***YOLOv1、YOLOv2***
 ```
-from utils.tools import create_score_mat
+from utils.measurement import create_score_mat
 
 prediction = yolo.model.predict(data)
 
@@ -292,7 +293,7 @@ print(create_score_mat)
 
 ***YOLOv3***
 ```
-from utils.tools import create_score_mat
+from utils.measurement import create_score_mat
 
 prediction = yolo.model.predict(data)
 
@@ -304,7 +305,7 @@ yolo.vis_img(
     nms_mode=2)
 
 create_score_mat(
-    label,
+    label[-1],
     prediction[2],
     prediction[1],
     prediction[0],
@@ -318,4 +319,50 @@ print(create_score_mat)
   - 0: Not use NMS.
   - 1: Use NMS.
   - 2: Use Soft-NMS.
-- **version**: An integer, specifying the decode method, yolov1、v2 or v3.  
+- **version**: An integer, specifying the decode method, yolov1、v2 or v3.
+
+## 9. Get PR curve and mAP
+
+***YOLOv1、YOLOv2***
+```
+from utils.measurement import PR_func
+
+pr = PR_func(
+    label,
+    prediction,
+    class_names=yolo.class_names,
+    max_per_img=100,
+    version=1 # or version=2
+    )
+
+pr.plot_pr_curve(smooth=False)
+
+pr.get_map(mode="voc2012")
+```
+
+***YOLOv3***
+```
+from utils.measurement import PR_func
+
+pr = PR_func(
+    data[-1],
+    prediction[2],
+    prediction[1],
+    prediction[0],
+    class_names=yolo.class_names,
+    max_per_img=100,
+    version=3
+    )
+
+pr.plot_pr_curve(smooth=False)
+
+pr.get_map(mode="voc2012")
+```
+
+- **max_per_img**: An integer, limit the number of objects that an image can detect at most.
+- **version**: An integer, specifying the decode method, yolov1、v2 or v3.
+- **smooth**: A boolean, if True, use interpolated precision.
+- **mode**: A string, one of "voc2007", "voc2012"(default), "area".
+  - "voc2007": calculate the average precision of recalls at [0, 0.1, ..., 1](11 points).
+  - "voc2012": calculate the average precision of recalls at [0, 0.14, 0.29, 0.43, 0.57, 0.71, 1].
+  - "area": calculate the area under precision-recall curve.
