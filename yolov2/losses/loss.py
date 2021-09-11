@@ -71,11 +71,11 @@ def wrap_yolo_loss(grid_shape,
         xy_true = y_true[..., 0:2] # N*S*S*1*2
         xy_pred = y_pred[..., 0:2] # N*S*S*B*2
 
-        wh_true = tf.maximum(y_true[..., 2:4], epsilon) # N*S*S*1*2
-        wh_pred = tf.maximum(y_pred[..., 2:4], epsilon) # N*S*S*B*2
+        wh_true = tf.maximum(y_true[..., 2:4]/panchors, epsilon) # N*S*S*1*2
+        wh_pred = y_pred[..., 2:4]/panchors
         
-        wh_true = tf.math.log(wh_true/panchors) # N*S*S*B*2
-        wh_pred = tf.math.log(wh_pred/panchors) # N*S*S*B*2
+        wh_true = tf.math.log(wh_true) # N*S*S*B*2
+        wh_pred = tf.math.log(wh_pred) # N*S*S*B*2
 
         c_pred = y_pred[..., 4] # N*S*S*B
 
@@ -118,11 +118,15 @@ def wrap_yolo_loss(grid_shape,
                 has_obj_mask_exp # N*S*S*B*1
                 *(p_true*tf.math.log(p_pred)), # N*S*S*B*C
                 axis=0))
-
+        
+        regularizer = tf.reduce_sum(
+            tf.reduce_mean(wh_pred**2, axis=0))*0.01
+        
         loss = (loss_weight[0]*xy_loss
                 + loss_weight[1]*wh_loss
                 + loss_weight[2]*c_loss
-                + loss_weight[3]*p_loss)
+                + loss_weight[3]*p_loss
+                + regularizer)
 
         return loss
 
