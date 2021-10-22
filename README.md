@@ -362,7 +362,8 @@ pr.get_map(mode="voc2012")
 - **max_per_img**: An integer, limit the number of objects that an image can detect at most.
 - **version**: An integer, specifying the decode method, yolov1、v2 or v3.
 - **smooth**: A boolean, if True, use interpolated precision.
-- **mode**: A string, one of "voc2007", "voc2012"(default), "area".
+- **mode**: A string, one of "voc2007", "voc2012"(default), "area", "smootharea".
   - "voc2007": calculate the average precision of recalls at [0, 0.1, ..., 1](11 points).
   - "voc2012": calculate the average precision of recalls at [0, 0.14, 0.29, 0.43, 0.57, 0.71, 1].
   - "area": calculate the area under precision-recall curve.
+  - "smootharea": calculate the area under interpolated precision-recall curve.

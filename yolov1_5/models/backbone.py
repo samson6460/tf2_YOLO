@@ -34,7 +34,7 @@ def darknet_body(x):
 
     conv5 = Conv2D_BN_Leaky(pool4, 512, 1)
     conv5 = Conv2D_BN_Leaky(conv5, 1024, 3)
-    conv5 = Conv2D_BN_Leaky(pool4, 512, 1)
+    conv5 = Conv2D_BN_Leaky(conv5, 512, 1)
     conv5 = Conv2D_BN_Leaky(conv5, 1024, 3)
     conv5 = Conv2D_BN_Leaky(conv5, 1024, 3)
     conv5 = Conv2D_BN_Leaky(conv5, 1024, 3, 2)

@@ -342,26 +342,40 @@ class PR_func(object):
         """Get a mAP table
 
         Args:
-            mode: A string, one of "voc2007", "voc2012"(default), "area".
+            mode: A string, one of "voc2007", "voc2012"(default),
+                "area", "smootharea".
                 "voc2007": calculate the average precision of
                     recalls at [0, 0.1, ..., 1](11 points).
                 "voc2012": calculate the average precision of
                     recalls at [0, 0.14, 0.29, 0.43, 0.57, 0.71, 1].
                 "area": calculate the area under precision-recall curve.
+                "smootharea": calculate the area 
+                    under interpolated precision-recall curve.
 
         Return:
             A Pandas.Dataframe
         """
         aps = [0 for _ in range(self.class_num)]
         
-        if mode == "area":
+        if mode == "area" or mode == "smootharea":
             for class_i in range(self.class_num):
-                precisions = self.precisions[class_i]
+                if mode == "smootharea":
+                    precisions = self.precisions[class_i].copy()
+                    max_pc = 0
+                    for i in range(len(precisions)-1, -1, -1):
+                        if precisions[i] > max_pc:
+                            max_pc = precisions[i]
+                        else:
+                            precisions[i] = max_pc
+                else:
+                    precisions = self.precisions[class_i]
                 recalls = self.recalls[class_i]
-                for pr_i in range(len(precisions)-1, 0, -1):
-                    delta = (recalls[pr_i] - recalls[pr_i - 1])
-                    aps[class_i] += delta*precisions[pr_i]
-                aps[class_i] += (recalls[0]/2)*precisions[0]
+
+                for pr_i in range(0, len(precisions)-1):
+                    delta = recalls[pr_i + 1] - recalls[pr_i]
+                    value = ((precisions[pr_i + 1] - precisions[pr_i])/2
+                             + precisions[pr_i])
+                    aps[class_i] += delta*value
         else:
             if mode == "voc2012":
                 recall_list = [0, 0.14, 0.29, 0.43, 0.57, 0.71, 1]
