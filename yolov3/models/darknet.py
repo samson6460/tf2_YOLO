@@ -11,16 +11,55 @@ from .backbone import compose
 
 
 WEIGHTS_PATH_DN_BODY = "https://github.com/samson6460/tf2_YOLO/releases/download/1.0/tf_keras_yolov3_body.h5"
+WEIGHTS_PATH_DN53_TOP = "https://github.com/samson6460/tf2_YOLO/releases/download/Weights/tf_keras_darknet53_448_include_top.h5"
+WEIGHTS_PATH_DN53_NOTOP = "https://github.com/samson6460/tf2_YOLO/releases/download/Weights/tf_keras_darknet53_448_no_top.h5"
 
+def darknet53(include_top=True, weights='imagenet',
+              input_shape=(448, 448, 3), class_num=1000):
+    """Create Darknet53 model.
 
-def darknet53(input_shape=(416, 416, 3), class_num=10):
+    Args:
+        include_top: A boolean, whether to include the fully-connected layer
+            at the top of the network.
+        weights: one of None (random initialization),
+            'imagenet' (pre-training on ImageNet),
+            or the path to the weights file to be loaded.
+        input_shape: A tuple of 3 integers,
+            shape of input image.
+        class_num: optional number of classes to classify images into,
+            only to be specified if include_top is True,
+            and if no weights argument is specified.
+    """
     inputs = Input(input_shape)
-    darknet_outputs = darknet_body(inputs)
+    outputs = darknet_body(inputs)
 
-    x = GlobalAveragePooling2D()(darknet_outputs)
-    outputs = Dense(class_num, activation="softmax")(x)
-
+    if include_top: 
+        x = GlobalAveragePooling2D()(outputs)
+        outputs = Dense(class_num, activation="softmax")(x)
+    
     model = Model(inputs, outputs)
+
+    if weights is not None:
+        if weights == "imagenet":
+            if include_top:
+                if input_shape != (448, 448, 3):
+                    raise ValueError("When setting `include_top=True` "
+                        "and loading `imagenet` weights, "
+                        "`input_shape` should be (448, 448, 3).")
+                if class_num != 1000:
+                    raise ValueError("If using `weights` as `'imagenet'` "
+                        "with `include_top` as true, "
+                        "`class_num` should be 1000")
+                weights = get_file(
+                    "tf_keras_darknet53_448_include_top.h5",
+                    WEIGHTS_PATH_DN53_TOP,
+                    cache_subdir="models")
+            else:
+                weights = get_file(
+                    "tf_keras_darknet53_448_no_top.h5",
+                    WEIGHTS_PATH_DN53_NOTOP,
+                    cache_subdir="models")
+        model.load_weights(weights)
 
     return model
 

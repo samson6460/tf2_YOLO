@@ -80,19 +80,19 @@ Most importantly, the repo is written in Python and Tensorflow, so you can easil
 ***YOLOv1***
 ```
 from tf2_YOLO import yolov1_5
-yolo = yolov1_5.YOLO(input_shape, class_names)
+yolo = yolov1_5.Yolo(input_shape, class_names)
 ```
 
 ***YOLOv2***
 ```
 from tf2_YOLO import yolov2
-yolo = yolov2.YOLO(input_shape, class_names)
+yolo = yolov2.Yolo(input_shape, class_names)
 ```
 
 ***YOLOv3***
 ```
 from tf2_YOLO import yolov3
-yolo = yolov3.YOLO(input_shape, class_names)
+yolo = yolov3.Yolo(input_shape, class_names)
 ```
 
 - **input_shape**: A tuple of 3 integers, shape of input image.
