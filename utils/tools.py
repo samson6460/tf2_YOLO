@@ -20,6 +20,7 @@ import threading
 from imgaug.augmentables.bbs import BoundingBox, BoundingBoxesOnImage
 from tensorflow.keras.utils import Sequence
 import pandas as pd
+import xml.etree.ElementTree as ET
 
 epsilon = 1e-07
 
@@ -1025,3 +1026,91 @@ def array_to_json(path,
 
     with open(path, "w") as fp:
         fp.write(str(data).replace("'", "\""))
+
+
+def array_to_xml(path,
+                 img_size,                 
+                 *label_datas,
+                 class_names=[],
+                 conf_threshold=0.5,
+                 nms_mode=0,
+                 nms_threshold=0.5,
+                 nms_sigma=0.5,
+                 version=3):
+    """Convert Yolo output array to xml file.
+
+    Args:
+        path: A string,
+            the path to store the xml file.
+        img_size: A tuple of 2 integers (heights, widths),
+            original size of image.
+        *label_datas: Ndarrays,
+            shape: (grid_heights, grid_widths, info).
+            Multiple label data can be given at once.
+        class_names: A list, containing all label names.
+        conf_threshold: A float,
+            threshold for quantizing output.
+        nms_mode: An integer,
+            0: Not use NMS.
+            1: Use NMS.
+            2: Use Soft-NMS.
+        nms_threshold: A float,
+            threshold for eliminating duplicate boxes.
+        nms_sigma: A float,
+            sigma for Soft-NMS.
+        version: An integer,
+            specifying the decode method, yolov1、v2 or v3.     
+    """
+    class_num = len(class_names)
+
+    xywhcp = decode(*label_datas,
+                    class_num=class_num,
+                    threshold=conf_threshold,
+                    version=version)
+    if nms_mode > 0 and len(xywhcp) > 0:
+        if nms_mode == 1:
+            xywhcp = nms(xywhcp, nms_threshold)
+        elif nms_mode == 2:
+            xywhcp = soft_nms(
+                xywhcp, nms_threshold,
+                conf_threshold, nms_sigma)
+
+    xywhc = xywhcp[..., :5]
+    prob = xywhcp[..., -class_num:] 
+
+    root = ET.Element("annotation")
+    for i in range(len(xywhc)):
+        x = xywhc[i][0]*img_size[1]
+        y = xywhc[i][1]*img_size[0]
+        
+        w = xywhc[i][2]*img_size[1]
+        h = xywhc[i][3]*img_size[0]
+
+        label = class_names[prob[i].argmax()]
+        conf = xywhc[i][4]*prob[i].max()
+
+        object = ET.Element("object")
+        root.append(object)
+
+        name = ET.SubElement(object, "name")
+        name.text = label
+
+        bndbox = ET.Element("bndbox")
+        object.append(bndbox)
+
+        xmin = ET.SubElement(bndbox, "xmin")
+        xmin.text = str(int(x - w/2))
+        ymin = ET.SubElement(bndbox, "ymin")
+        ymin.text = str(int(y - h/2))
+        xmax = ET.SubElement(bndbox, "xmax")
+        xmax.text = str(int(x + w/2))
+        ymax = ET.SubElement(bndbox, "ymax")
+        ymax.text = str(int(y + h/2))
+
+        confidence = ET.SubElement(object, "confidence")
+        confidence.text = str(conf)
+
+    tree = ET.ElementTree(root)
+    
+    with open(path, "wb") as files:
+        tree.write(files)
