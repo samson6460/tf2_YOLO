@@ -18,6 +18,7 @@ import base64
 from math import ceil
 import threading
 from imgaug.augmentables.bbs import BoundingBox, BoundingBoxesOnImage
+from numpy.core.fromnumeric import argmax
 from tensorflow.keras.utils import Sequence
 import pandas as pd
 import xml.etree.ElementTree as ET
@@ -577,8 +578,8 @@ def decode(*label_datas,
         *label_datas: Ndarrays,
             shape: (grid_heights, grid_widths, info).
             Multiple label data can be given at once.
-        class_num:  An integer.
-            containing all label names.
+        class_num:  An integer,
+            number of classes.
         threshold: A float,
             threshold for quantizing output.
         version: An integer,
@@ -871,29 +872,37 @@ def nms(xywhcp, nms_threshold=0.5):
     Returns:
         xywhcp through nms.
     """
-    xywhc = xywhcp[..., :5]
+    prob = xywhcp[..., 5:]
+    argmax_prob = prob.argmax(axis=-1)
 
-    xywhc_axis0 = np.reshape(
-        xywhc, (-1, 1, 5))
-    xywhc_axis1 = np.reshape(
-        xywhc, (1, -1, 5))
+    xywhcp_new = []
+    for i_class in range(prob.shape[-1]):
+        xywhcp_class = xywhcp[argmax_prob==i_class]
+        xywhc_class = xywhcp_class[..., :5]
 
-    iou_scores = cal_iou(xywhc_axis0, xywhc_axis1)
-    conf = xywhc[..., 4]
-    sort_index = np.argsort(conf)[::-1]
+        xywhc_axis0 = np.reshape(
+            xywhc_class, (-1, 1, 5))
+        xywhc_axis1 = np.reshape(
+            xywhc_class, (1, -1, 5))
 
-    white_list = []
-    delete_list = []
-    for conf_index in sort_index:
-        white_list.append(conf_index)
-        if conf_index not in delete_list:
-            iou_score = iou_scores[conf_index]
-            overlap_indexes = np.where(iou_score >= nms_threshold)[0]
+        iou_scores = cal_iou(xywhc_axis0, xywhc_axis1)
+        conf = xywhc_class[..., 4]
+        sort_index = np.argsort(conf)[::-1]
 
-            for overlap_index in overlap_indexes:
-                if overlap_index not in white_list:
-                    delete_list.append(overlap_index)
-    xywhcp = np.delete(xywhcp, delete_list, axis=0)
+        white_list = []
+        delete_list = []
+        for conf_index in sort_index:
+            white_list.append(conf_index)
+            if conf_index not in delete_list:
+                iou_score = iou_scores[conf_index]
+                overlap_indexes = np.where(iou_score >= nms_threshold)[0]
+
+                for overlap_index in overlap_indexes:
+                    if overlap_index not in white_list:
+                        delete_list.append(overlap_index)
+        xywhcp_class = np.delete(xywhcp_class, delete_list, axis=0)
+        xywhcp_new.append(xywhcp_class)
+    xywhcp = np.vstack(xywhcp_new)
     return xywhcp
 
 
@@ -911,31 +920,39 @@ def soft_nms(xywhcp, nms_threshold=0.5, conf_threshold=0.5, sigma=0.5):
     Returns:
         xywhcp through nms.
     """
-    xywhc = xywhcp[..., :5]
+    prob = xywhcp[..., 5:]
+    argmax_prob = prob.argmax(axis=-1)
 
-    xywhc_axis0 = np.reshape(
-        xywhc, (-1, 1, 5))
-    xywhc_axis1 = np.reshape(
-        xywhc, (1, -1, 5))
+    xywhcp_new = []
+    for i_class in range(prob.shape[-1]):
+        xywhcp_class = xywhcp[argmax_prob==i_class]
+        xywhc_class = xywhcp_class[..., :5]
 
-    iou_scores = cal_iou(xywhc_axis0, xywhc_axis1)
-    conf = xywhc[..., 4]
-    sort_index = np.argsort(conf)[::-1]
+        xywhc_axis0 = np.reshape(
+            xywhc_class, (-1, 1, 5))
+        xywhc_axis1 = np.reshape(
+            xywhc_class, (1, -1, 5))
 
-    white_list = []
-    delete_list = []
-    for conf_index in sort_index:
-        white_list.append(conf_index)
-        iou_score = iou_scores[conf_index]
-        overlap_indexes = np.where(iou_score >= nms_threshold)[0]
+        iou_scores = cal_iou(xywhc_axis0, xywhc_axis1)
+        conf = xywhc_class[..., 4]
+        sort_index = np.argsort(conf)[::-1]
 
-        for overlap_index in overlap_indexes:
-            if overlap_index not in white_list:
-                conf_decay = np.exp(-1*(iou_score[overlap_index]**2)/sigma)
-                conf[overlap_index] *= conf_decay
-                if conf[overlap_index] < conf_threshold:
-                    delete_list.append(overlap_index)
-    xywhcp = np.delete(xywhcp, delete_list, axis=0)
+        white_list = []
+        delete_list = []
+        for conf_index in sort_index:
+            white_list.append(conf_index)
+            iou_score = iou_scores[conf_index]
+            overlap_indexes = np.where(iou_score >= nms_threshold)[0]
+
+            for overlap_index in overlap_indexes:
+                if overlap_index not in white_list:
+                    conf_decay = np.exp(-1*(iou_score[overlap_index]**2)/sigma)
+                    conf[overlap_index] *= conf_decay
+                    if conf[overlap_index] < conf_threshold:
+                        delete_list.append(overlap_index)
+        xywhcp_class = np.delete(xywhcp_class, delete_list, axis=0)
+        xywhcp_new.append(xywhcp_class)
+    xywhcp = np.vstack(xywhcp_new)
     return xywhcp
 
 
