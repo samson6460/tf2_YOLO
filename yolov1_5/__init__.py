@@ -4,25 +4,25 @@
 """Yolo V1.5.
 """
 
-__version__ = "3.0"
+__version__ = "3.1"
 __author__ = "Samson Woof"
 
 from os import path
 import sys
 sys.path.append(path.join(path.dirname(__file__), '..'))
 
-from tensorflow.keras.models import load_model
-
 from utils import tools
 from .models import yolo_body, yolo_head
 from .losses import wrap_yolo_loss
-from .metrics import wrap_obj_acc, wrap_iou_acc, wrap_class_acc
+from .metrics import wrap_obj_acc, wrap_mean_iou
+from .metrics import wrap_class_acc, wrap_recall
 
 
 class Acc_type(object):
-    obj = "obj"
-    iou = "iou"
-    classes = "class"
+    obj_acc = "obj_acc"
+    mean_iou = "mean_iou"
+    class_acc = "class_acc"
+    recall = "recall"
 
 
 class Yolo(object):
@@ -236,18 +236,19 @@ class Yolo(object):
                 sigma for Soft-NMS.               
             figsize: (float, float), optional, default: None
                 width, height in inches. If not provided, defaults to [6.4, 4.8].
+            dpi: float, default: rcParams["figure.dpi"] (default: 100.0)
+                The resolution of the figure in dots-per-inch.
+                Set as 1.325, then 1 inch will be 1 dot. 
             axis: bool or str
                 If a bool, turns axis lines and labels on or off.
                 If a string, possible values are:
                 https://matplotlib.org/3.1.1/api/_as_gen/matplotlib.axes.Axes.axis.html
-            savefig_path: None or string or PathLike or file-like object
-                A path, or a Python file-like object.
-            connection: A string,
-                one of "head"、"tail",
-                connect visualization of ground truth and prediction.
+            savefig_path: None, string, pathLike or file-like object.
             fig_ax: (matplotlib.pyplot.figure, matplotlib.pyplot.axes),
-                This argument only works
-                when the connection is specified as "tail".
+                use this argument to connect visualization of different labels,
+                e.g., plot ground truth and prediction label in an image.
+            return_fig_ax: A boolean, whether to return fig_ax.
+                if it's True, the function won't plot the result this time.
             point_radius: 5.
             point_color: A string or list, defalut: "r".
             box_linewidth: 2.
@@ -295,35 +296,52 @@ class Yolo(object):
             loss_weight=loss_weight
             )
     
-    def metrics(self, acc_type="obj"):
+    def metrics(self, type="obj_acc"):
         """Metrics of yolo.
 
         Args:
-            acc_type: A string,
-                one of "obj"、"iou" or "class",
-                or "obj+iou"、"obj+iou+class" to specify
-                multiple metrics.
+            type: A string,
+                one of "obj_acc", "mean_iou", "class_acc" or "recall",
+                use "obj_acc+mean_iou", "mean_iou+recall0.6"
+                to specify multiple metrics.
+                The number after "recall" indicates the iou threshold.
 
         Returns:
              A list of metric function conforming to tf.keras specification.
         """        
         metrics_list = []     
-        if "obj" in acc_type:
+        if "obj" in type:
             metrics_list.append(
                 wrap_obj_acc(
                     self.grid_shape, 
                     self.bbox_num, 
                     self.class_num))
-        if "iou" in acc_type:
+        if "iou" in type:
             metrics_list.append(
-                wrap_iou_acc(
+                wrap_mean_iou(
                     self.grid_shape, 
                     self.bbox_num, 
                     self.class_num))
-        if "class" in acc_type:
+        if "class" in type:
             metrics_list.append(
                 wrap_class_acc(
                     self.grid_shape, 
                     self.bbox_num, 
                     self.class_num))
+        if "recall" in type:
+            iou_threshold = type[type.find("recall") + 6:]
+            end = iou_threshold.rfind("+")
+            if end < 0: end = None
+            iou_threshold = iou_threshold[:end]
+            if iou_threshold == "":
+                iou_threshold = 0.5
+            else:
+                iou_threshold = float(iou_threshold)
+
+            metrics_list.append(
+                wrap_recall(
+                    self.grid_shape, 
+                    self.bbox_num, 
+                    self.class_num,
+                    iou_threshold=iou_threshold))
         return metrics_list

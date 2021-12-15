@@ -592,17 +592,20 @@ def decode(*label_datas,
             bbox_num = (label_data.shape[-1] - class_num)//5
             xywhc = np.reshape(label_data[..., :-class_num],
                                (*grid_shape, bbox_num, 5))
+            prob = label_data[..., -class_num:]
+            joint_conf = xywhc[..., 4]*np.max(prob, axis=-1, keepdims=True)
         elif version == 2 or version == 3:
             bbox_num = label_data.shape[-1]//(5 + class_num)
             label_data = np.reshape(label_data,
                                     (*grid_shape,
                                      bbox_num, 5 + class_num))
-            xywhc = label_data[..., :-class_num]
+            xywhc = label_data[..., :5]
+            prob = label_data[..., -class_num:]
+            joint_conf = xywhc[..., 4]*np.max(prob, axis=-1)
         else:
             raise ValueError("Invalid version: %s" % version)   
 
-        prob = label_data[..., -class_num:] 
-        where = np.where(xywhc[..., 4] >= threshold)
+        where = np.where(joint_conf >= threshold)
 
         for i in range(len(where[0])):
             x_i = where[1][i]
@@ -643,8 +646,8 @@ def vis_img(img,
             dpi=None,
             axis="off",
             savefig_path=None,
-            connection=None,
             fig_ax=None,
+            return_fig_ax=False,
             point_radius=5,
             point_color="r",
             box_linewidth=2,
@@ -683,14 +686,12 @@ def vis_img(img,
             If a bool, turns axis lines and labels on or off.
             If a string, possible values are:
             https://matplotlib.org/3.1.1/api/_as_gen/matplotlib.axes.Axes.axis.html
-        savefig_path: None or string or PathLike or file-like object
-            A path, or a Python file-like object.
-        connection: A string,
-            one of "head"、"tail",
-            connect visualization of ground truth and prediction.
+        savefig_path: None, string, pathLike or file-like object.
         fig_ax: (matplotlib.pyplot.figure, matplotlib.pyplot.axes),
-            This argument only works
-            when the connection is specified as "tail".
+            use this argument to connect visualization of different labels,
+            e.g., plot ground truth and prediction label in an image.
+        return_fig_ax: A boolean, whether to return fig_ax.
+            if it's True, the function won't plot the result this time.
         point_radius: 5.
         point_color: A string or list, defalut: "r".
         box_linewidth: 2.
@@ -732,7 +733,7 @@ def vis_img(img,
     xywhc = xywhcp[..., :5]
     prob = xywhcp[..., -class_num:] 
 
-    if connection == "tail":
+    if fig_ax is not None:
         fig, ax = fig_ax
     else:
         fig, ax = plt.subplots(1, figsize=figsize, dpi=dpi)
@@ -780,7 +781,7 @@ def vis_img(img,
     if savefig_path is not None:
         fig.savefig(savefig_path, bbox_inches='tight', pad_inches = 0)
 
-    if connection == "head":
+    if return_fig_ax:
         return fig, ax
     else:
         plt.show()
@@ -879,6 +880,7 @@ def nms(xywhcp, nms_threshold=0.5):
     for i_class in range(prob.shape[-1]):
         xywhcp_class = xywhcp[argmax_prob==i_class]
         xywhc_class = xywhcp_class[..., :5]
+        prob_class = xywhcp_class[..., 5 + i_class]
 
         xywhc_axis0 = np.reshape(
             xywhc_class, (-1, 1, 5))
@@ -886,7 +888,7 @@ def nms(xywhcp, nms_threshold=0.5):
             xywhc_class, (1, -1, 5))
 
         iou_scores = cal_iou(xywhc_axis0, xywhc_axis1)
-        conf = xywhc_class[..., 4]
+        conf = xywhc_class[..., 4]*prob_class
         sort_index = np.argsort(conf)[::-1]
 
         white_list = []
@@ -927,6 +929,7 @@ def soft_nms(xywhcp, nms_threshold=0.5, conf_threshold=0.5, sigma=0.5):
     for i_class in range(prob.shape[-1]):
         xywhcp_class = xywhcp[argmax_prob==i_class]
         xywhc_class = xywhcp_class[..., :5]
+        prob_class = xywhcp_class[..., 5 + i_class]
 
         xywhc_axis0 = np.reshape(
             xywhc_class, (-1, 1, 5))
@@ -934,7 +937,7 @@ def soft_nms(xywhcp, nms_threshold=0.5, conf_threshold=0.5, sigma=0.5):
             xywhc_class, (1, -1, 5))
 
         iou_scores = cal_iou(xywhc_axis0, xywhc_axis1)
-        conf = xywhc_class[..., 4]
+        conf = xywhc_class[..., 4]*prob_class
         sort_index = np.argsort(conf)[::-1]
 
         white_list = []
@@ -1025,8 +1028,9 @@ def array_to_json(path,
         w = xywhc[i][2]*img_size[1]
         h = xywhc[i][3]*img_size[0]
 
-        label = class_names[prob[i].argmax()]
-        conf = xywhc[i][4]*prob[i].max()
+        i_class = prob[i].argmax()
+        label = class_names[i_class]
+        conf = xywhc[i][4]*prob[i][i_class]
 
         point_min = [x - w/2, y - h/2]
         point_max = [x + w/2, y + h/2]
@@ -1103,8 +1107,9 @@ def array_to_xml(path,
         w = xywhc[i][2]*img_size[1]
         h = xywhc[i][3]*img_size[0]
 
-        label = class_names[prob[i].argmax()]
-        conf = xywhc[i][4]*prob[i].max()
+        i_class = prob[i].argmax()
+        label = class_names[i_class]
+        conf = xywhc[i][4]*prob[i][i_class]
 
         object = ET.Element("object")
         root.append(object)

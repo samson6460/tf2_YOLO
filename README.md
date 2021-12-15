@@ -216,9 +216,7 @@ binary_weight = get_class_weight(
 
 loss = yolo.loss(binary_weight)
 
-metrics = [yolo.metrics("obj"),
-           yolo.metrics("iou"),
-           yolo.metrics("class")]
+metrics = yolo.metrics("obj+iou+recall0.5")
 
 yolo.model.compile(optimizer=Adam(lr=1e-4),
                    loss=loss,
@@ -242,7 +240,7 @@ for i in range(len(label)):
 
 loss = yolo.loss(binary_weight_list)
 
-metrics = yolo.metrics("obj+iou+class")
+metrics = yolo.metrics("obj+iou+recall0.5")
 
 yolo.model.compile(optimizer=Adam(lr=1e-4),
                    loss=loss,
