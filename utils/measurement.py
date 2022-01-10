@@ -260,7 +260,7 @@ class PR_func(object):
                         and len(detection) > max_per_img):    
                         sort_index = np.argsort(detection[:, 0])[::-1]
                         detection = detection[sort_index]
-                        detection = detection[-max_per_img:]
+                        detection = detection[:max_per_img]
 
                     detections[class_i] = np.vstack(
                         (detections[class_i], detection))
