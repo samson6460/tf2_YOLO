@@ -222,9 +222,12 @@ def read_file(img_path=None,
 
             bbs = []
             labels = []
-            for i in range(len(data['shapes'])):
-                if data['shapes'][i]['label'] in class_names:
-                    label = class_names.index(data['shapes'][i]['label'])
+            data_shapes = data['shapes']
+            for i in range(len(data_shapes)):
+                label_text = data_shapes[i]['label']
+                if (data_shapes[i]['shape_type'] == 'rectangle'
+                        and label_text in class_names):
+                    label = class_names.index(label_text)
                     labels.append(label)
                     point = np.array(data['shapes'][i]['points'])
                     point = point/zoom_r
@@ -485,9 +488,11 @@ class YoloDataSequence(Sequence):
 
                 bbs = []
                 labels = []
-                for i in range(len(data['shapes'])):
-                    if data['shapes'][i]['label'] in self.class_names:
-                        label_text = data['shapes'][i]['label']
+                data_shapes = data['shapes']
+                for i in range(len(data_shapes)):
+                    label_text = data_shapes[i]['label']
+                    if (data_shapes[i]['shape_type'] == 'rectangle'
+                            and label_text in self.class_names):
                         label = self.class_names.index(label_text)
                         labels.append(label)
                         point = np.array(data['shapes'][i]['points'])
@@ -1039,6 +1044,7 @@ def array_to_json(path,
 
         obj_list.append({"label": label,
                          "points": points,
+                         "shape_type": "rectangle",
                          "confidence": conf})
 
     data = {"shapes": obj_list,
