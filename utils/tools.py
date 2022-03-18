@@ -589,6 +589,11 @@ def decode(*label_datas,
             threshold for quantizing output.
         version: An integer,
             specifying the decode method, yolov1、v2 or v3.
+
+    Return:
+        Numpy.ndarray with shape: (N, 7).
+            7 values represent:
+            x, y, w, h, c, class index, class probability.
     """
     output = []
     for label_data in label_datas:
@@ -597,8 +602,8 @@ def decode(*label_datas,
             bbox_num = (label_data.shape[-1] - class_num)//5
             xywhc = np.reshape(label_data[..., :-class_num],
                                (*grid_shape, bbox_num, 5))
-            prob = label_data[..., -class_num:]
-            joint_conf = xywhc[..., 4]*np.max(prob, axis=-1, keepdims=True)
+            prob = np.expand_dims(
+                label_data[..., -class_num:], axis=-2)
         elif version == 2 or version == 3:
             bbox_num = label_data.shape[-1]//(5 + class_num)
             label_data = np.reshape(label_data,
@@ -606,16 +611,17 @@ def decode(*label_datas,
                                      bbox_num, 5 + class_num))
             xywhc = label_data[..., :5]
             prob = label_data[..., -class_num:]
-            joint_conf = xywhc[..., 4]*np.max(prob, axis=-1)
         else:
             raise ValueError("Invalid version: %s" % version)   
 
+        joint_conf = xywhc[..., 4:5]*prob
         where = np.where(joint_conf >= threshold)
 
         for i in range(len(where[0])):
             x_i = where[1][i]
             y_i = where[0][i]
             box_i = where[2][i]
+            class_i = where[3][i]
 
             x_reg = xywhc[y_i, x_i, box_i, 0]
             y_reg = xywhc[y_i, x_i, box_i, 1]
@@ -628,14 +634,13 @@ def decode(*label_datas,
             
             w = w_reg
             h = h_reg
-
+            
             if version == 1:
-                output.append([x, y, w, h, conf,
-                               *prob[y_i, x_i, :]])
+                p = prob[y_i, x_i, 0, class_i]
             else:
-                output.append([x, y, w, h, conf,
-                               *prob[y_i, x_i, box_i, :]])
-    output = np.array(output)
+                p = prob[y_i, x_i, box_i, class_i]
+            output.append([x, y, w, h, conf, class_i, p])
+    output = np.array(output, dtype="float")
     return output
 
 def vis_img(img,
@@ -736,7 +741,7 @@ def vis_img(img,
                 conf_threshold, nms_sigma)
 
     xywhc = xywhcp[..., :5]
-    prob = xywhcp[..., -class_num:] 
+    prob = xywhcp[..., 5:] 
 
     if fig_ax is not None:
         fig, ax = fig_ax
@@ -752,32 +757,32 @@ def vis_img(img,
         w = xywhc[i][2]*nimg.shape[1]
         h = xywhc[i][3]*nimg.shape[0]
 
-        label_id = prob[i].argmax()
-        label = class_names[label_id]
+        class_i = int(prob[i][0])
+        label = class_names[class_i]
 
         point_min = int(x - w/2), int(y - h/2)
         # point_max = int(x + w/2), int(y + h/2)
 
         cir = Circle((x,y),
                      radius=point_radius,
-                     color=point_color[label_id])
+                     color=point_color[class_i])
         
         rect = Rectangle(point_min,
                          w, h,
                          linewidth=box_linewidth,
-                         edgecolor=box_color[label_id],
+                         edgecolor=box_color[class_i],
                          facecolor="none")
         if show_conf:
-            conf = xywhc[i][4]*prob[i][label_id]
+            conf = xywhc[i][4]*prob[i][1]
             text = "%s:%.2f" % (label, conf)
         else:
             text = label
         if text_fontsize > 0:
             ax.text(*point_min,
                     text,
-                    color=text_color[label_id],
+                    color=text_color[class_i],
                     bbox=dict(boxstyle=BoxStyle.Square(pad=0.2),
-                              color=text_padcolor[label_id]),
+                              color=text_padcolor[class_i]),
                     fontsize=text_fontsize,
                     )
 
@@ -1023,7 +1028,7 @@ def array_to_json(path,
                 conf_threshold, nms_sigma)
 
     xywhc = xywhcp[..., :5]
-    prob = xywhcp[..., -class_num:] 
+    prob = xywhcp[..., 5:] 
 
     obj_list = []
     for i in range(len(xywhc)):
@@ -1033,9 +1038,9 @@ def array_to_json(path,
         w = xywhc[i][2]*img_size[1]
         h = xywhc[i][3]*img_size[0]
 
-        i_class = prob[i].argmax()
-        label = class_names[i_class]
-        conf = xywhc[i][4]*prob[i][i_class]
+        class_i = int(prob[i][0])
+        label = class_names[class_i]
+        conf = xywhc[i][4]*prob[i][1]
 
         point_min = [x - w/2, y - h/2]
         point_max = [x + w/2, y + h/2]
@@ -1103,7 +1108,7 @@ def array_to_xml(path,
                 conf_threshold, nms_sigma)
 
     xywhc = xywhcp[..., :5]
-    prob = xywhcp[..., -class_num:] 
+    prob = xywhcp[..., 5:] 
 
     root = ET.Element("annotation")
     for i in range(len(xywhc)):
@@ -1113,9 +1118,9 @@ def array_to_xml(path,
         w = xywhc[i][2]*img_size[1]
         h = xywhc[i][3]*img_size[0]
 
-        i_class = prob[i].argmax()
-        label = class_names[i_class]
-        conf = xywhc[i][4]*prob[i][i_class]
+        class_i = int(prob[i][0])
+        label = class_names[class_i]
+        conf = xywhc[i][4]*prob[i][1]
 
         object = ET.Element("object")
         root.append(object)

@@ -92,11 +92,11 @@ def create_score_mat(y_trues, *y_preds,
         p_pred = xywhcp_pred[..., 5:]
         
         if len(p_true) > 0:
-            class_true = p_true.argmax(axis=-1)
+            class_true = p_true[..., 0].astype("int")
         else:
             class_true = p_true
         if len(p_pred) > 0:
-            class_pred = p_pred.argmax(axis=-1)
+            class_pred = p_pred[..., 0].astype("int")
         else:
             class_pred = p_pred
 
@@ -222,11 +222,11 @@ class PR_func(object):
             p_pred = xywhcp_pred[..., 5:]
             
             if len(p_true) > 0:
-                class_true = p_true.argmax(axis=-1)
+                class_true = p_true[..., 0].astype("int")
             else:
                 class_true = p_true
             if len(p_pred) > 0:
-                class_pred = p_pred.argmax(axis=-1)
+                class_pred = p_pred[..., 0].astype("int")
             else:
                 class_pred = p_pred
 
@@ -306,7 +306,8 @@ class PR_func(object):
 
     def plot_pr_curve(self, class_idx=0,
                       smooth=False,
-                      figsize=None):
+                      figsize=None,
+                      return_fig=False):
         """Plot PR curve
 
         Args:
@@ -314,7 +315,9 @@ class PR_func(object):
             smooth: A boolean,
                 if True, use interpolated precision.
             figsize: (float, float), optional, default: None
-            width, height in inches. If not provided, defaults to [6.4, 4.8].
+                width, height in inches.
+                If not provided, defaults to [6.4, 4.8].
+            return_fig: A boolean, whether to return plt.figure.
         """
         if class_idx >= self.class_num:
             raise IndexError("Class index out of range")
@@ -336,7 +339,11 @@ class PR_func(object):
         plt.ylabel("precision")
         plt.xlim(-0.05, 1.05)
         plt.ylim(-0.05, 1.05)
-        plt.show()
+
+        if return_fig:
+            return fig
+        else:
+            plt.show()
 
     def get_map(self, mode="voc2012"):
         """Get a mAP table
