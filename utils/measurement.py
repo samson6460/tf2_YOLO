@@ -80,10 +80,10 @@ def create_score_mat(y_trues, *y_preds,
                              version=version)
         if nms_mode > 0 and len(xywhcp_pred) > 0:
             if nms_mode == 1:
-                xywhcp_pred = nms(xywhcp_pred, nms_threshold)
+                xywhcp_pred = nms(xywhcp_pred, class_num, nms_threshold)
             elif nms_mode == 2:
                 xywhcp_pred = soft_nms(
-                    xywhcp_pred, nms_threshold,
+                    xywhcp_pred, class_num, nms_threshold,
                     conf_threshold, nms_sigma)
 
         xywhc_true = xywhcp_true[..., :5]
@@ -210,10 +210,10 @@ class PR_func(object):
                                  version=version)
             if nms_mode > 0 and len(xywhcp_pred) > 0:
                 if nms_mode == 1:
-                    xywhcp_pred = nms(xywhcp_pred, nms_threshold)
+                    xywhcp_pred = nms(xywhcp_pred, class_num, nms_threshold)
                 elif nms_mode == 2:
                     xywhcp_pred = soft_nms(
-                        xywhcp_pred, nms_threshold,
+                        xywhcp_pred, class_num, nms_threshold,
                         conf_threshold, nms_sigma)
 
             xywhc_true = xywhcp_true[..., :5]

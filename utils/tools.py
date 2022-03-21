@@ -734,10 +734,10 @@ def vis_img(img,
                     version=version)
     if nms_mode > 0 and len(xywhcp) > 0:
         if nms_mode == 1:
-            xywhcp = nms(xywhcp, nms_threshold)
+            xywhcp = nms(xywhcp, class_num, nms_threshold)
         elif nms_mode == 2:
             xywhcp = soft_nms(
-                xywhcp, nms_threshold,
+                xywhcp, class_num, nms_threshold,
                 conf_threshold, nms_sigma)
 
     xywhc = xywhcp[..., :5]
@@ -873,24 +873,25 @@ def cal_iou(xywh_true, xywh_pred):
     return iou_scores
  
 
-def nms(xywhcp, nms_threshold=0.5):
+def nms(xywhcp, class_num=1, nms_threshold=0.5):
     """Non-Maximum Suppression.
 
     Args:
         xywhcp: output from `decode()`.
+        class_num:  An integer,
+            number of classes.
         nms_threshold: A float, default is 0.5.
 
     Returns:
         xywhcp through nms.
     """
-    prob = xywhcp[..., 5:]
-    argmax_prob = prob.argmax(axis=-1)
+    argmax_prob = xywhcp[..., 5].astype("int")
 
     xywhcp_new = []
-    for i_class in range(prob.shape[-1]):
+    for i_class in range(class_num):
         xywhcp_class = xywhcp[argmax_prob==i_class]
         xywhc_class = xywhcp_class[..., :5]
-        prob_class = xywhcp_class[..., 5 + i_class]
+        prob_class = xywhcp_class[..., 6]
 
         xywhc_axis0 = np.reshape(
             xywhc_class, (-1, 1, 5))
@@ -918,11 +919,14 @@ def nms(xywhcp, nms_threshold=0.5):
     return xywhcp
 
 
-def soft_nms(xywhcp, nms_threshold=0.5, conf_threshold=0.5, sigma=0.5):
+def soft_nms(xywhcp, class_num=1,
+        nms_threshold=0.5, conf_threshold=0.5, sigma=0.5):
     """Soft Non-Maximum Suppression.
 
     Args:
         xywhcp: output from `decode()`.
+        class_num:  An integer,
+            number of classes.
         nms_threshold: A float, default is 0.5.
         conf_threshold: A float,
             threshold for quantizing output.
@@ -932,14 +936,13 @@ def soft_nms(xywhcp, nms_threshold=0.5, conf_threshold=0.5, sigma=0.5):
     Returns:
         xywhcp through nms.
     """
-    prob = xywhcp[..., 5:]
-    argmax_prob = prob.argmax(axis=-1)
+    argmax_prob = xywhcp[..., 5].astype("int")
 
     xywhcp_new = []
-    for i_class in range(prob.shape[-1]):
+    for i_class in range(class_num):
         xywhcp_class = xywhcp[argmax_prob==i_class]
         xywhc_class = xywhcp_class[..., :5]
-        prob_class = xywhcp_class[..., 5 + i_class]
+        prob_class = xywhcp_class[..., 6]
 
         xywhc_axis0 = np.reshape(
             xywhc_class, (-1, 1, 5))
@@ -1021,10 +1024,10 @@ def array_to_json(path,
                     version=version)
     if nms_mode > 0 and len(xywhcp) > 0:
         if nms_mode == 1:
-            xywhcp = nms(xywhcp, nms_threshold)
+            xywhcp = nms(xywhcp, class_num, nms_threshold)
         elif nms_mode == 2:
             xywhcp = soft_nms(
-                xywhcp, nms_threshold,
+                xywhcp, class_num, nms_threshold,
                 conf_threshold, nms_sigma)
 
     xywhc = xywhcp[..., :5]
@@ -1101,10 +1104,10 @@ def array_to_xml(path,
                     version=version)
     if nms_mode > 0 and len(xywhcp) > 0:
         if nms_mode == 1:
-            xywhcp = nms(xywhcp, nms_threshold)
+            xywhcp = nms(xywhcp, class_num, nms_threshold)
         elif nms_mode == 2:
             xywhcp = soft_nms(
-                xywhcp, nms_threshold,
+                xywhcp, class_num, nms_threshold,
                 conf_threshold, nms_sigma)
 
     xywhc = xywhcp[..., :5]
