@@ -19,7 +19,7 @@ def create_score_mat(y_trues, *y_preds,
                      nms_threshold=0.5,
                      nms_sigma=0.5,
                      iou_threshold=0.5,
-                     precision_mode=1,
+                     precision_mode=2,
                      version=3):
     """Create score matrix table
     containing precision, recall, F1-score, gts and dets.
@@ -46,9 +46,10 @@ def create_score_mat(y_trues, *y_preds,
             sigma for Soft-NMS.
         iou_threshold: A float,
             threshold for true positive determination.
-        precision_mode: An integer,
+        precision_mode: An integer, default is 2.
             mode 0: precision = (TPP)/(PP)
             mode 1: precision = (TP)/(PP-(TPP-TP))
+            mode 2: precision = (TP)/(PP)
             (TPP: true predictive positive;
              TP : true positive;
              PP : predictive positive)
@@ -124,7 +125,8 @@ def create_score_mat(y_trues, *y_preds,
                 num_TP = sum(best_ious_true >= iou_threshold)
                 
                 if precision_mode == 1:
-                    denom_array[class_i, 0] -= num_TPP - num_TP
+                    denom_array[class_i, 0] -= (num_TPP - num_TP)
+                if precision_mode > 0:
                     num_TPP = num_TP
                 TP_array[class_i] += (num_TPP, num_TP)
     score_table = np.true_divide(TP_array, denom_array)
@@ -168,6 +170,14 @@ class PR_func(object):
             sigma for Soft-NMS.
         iou_threshold: A float,
             threshold for true positive determination.
+        precision_mode: An integer, default is 2.
+            mode 0: precision = (TPP)/(PP)
+            mode 1: precision = (TP)/(TP+FP)
+            mode 2: precision = (TP)/(PP)
+            (TPP: true predictive positive;
+             TP : true positive;
+             FP : false positive;
+             PP : predictive positive)
         max_per_img: An integer,
             limit the number of objects
             that an image can detect at most.
@@ -187,6 +197,7 @@ class PR_func(object):
                  nms_threshold=0.5,
                  nms_sigma=0.5,
                  iou_threshold=0.5,
+                 precision_mode=2,
                  max_per_img=100,
                  version=3):
         class_num = len(class_names)
@@ -238,26 +249,31 @@ class PR_func(object):
                 num_P = len(xywhc_true_class)
                 gts[class_i] = num_gts + num_P
 
-                if num_P > 0 and len(xywhc_pred_class) > 0:
-                    xywhc_true_class = np.reshape(
-                        xywhc_true_class, (-1, 1, 5))
-                    xywhc_pred_class = np.reshape(
-                        xywhc_pred_class, (1, -1, 5))
+                if len(xywhc_pred_class) > 0:
+                    conf_pred = xywhc_pred_class[:, 4]
+                    if num_P > 0:
+                        xywhc_true_class = np.reshape(
+                            xywhc_true_class, (-1, 1, 5))
+                        xywhc_pred_class = np.reshape(
+                            xywhc_pred_class, (1, -1, 5))
 
-                    iou_scores = cal_iou(xywhc_true_class, xywhc_pred_class)
-                    best_ious_pred = np.max(iou_scores, axis=0)
+                        iou_scores = cal_iou(
+                            xywhc_true_class, xywhc_pred_class)
+                        best_ious_pred = np.max(iou_scores, axis=0)
 
-                    iou_mask = (best_ious_pred >= iou_threshold)
-                    iou_mask = iou_mask.astype("float32")
+                        iou_mask = (best_ious_pred >= iou_threshold)
+                        iou_mask = iou_mask.astype("float32")
 
-                    box_id_pred = np.argmax(iou_scores, axis=0) + num_gts
+                        box_id_pred = np.argmax(iou_scores, axis=0) + num_gts
+                    else:
+                        iou_mask = np.zeros((len(xywhc_pred_class),))
+                        box_id_pred = iou_mask
 
-                    conf_pred = xywhc_pred_class[0, :, 4]
                     detection = np.stack(
                         (conf_pred, box_id_pred, iou_mask), axis=1)
                     
                     if (max_per_img is not None 
-                        and len(detection) > max_per_img):    
+                            and len(detection) > max_per_img):    
                         sort_index = np.argsort(detection[:, 0])[::-1]
                         detection = detection[sort_index]
                         detection = detection[:max_per_img]
@@ -282,7 +298,14 @@ class PR_func(object):
                 num_TPP = obj_mask.sum()
                 num_FP = num_dets - num_TPP
 
-                precisions[class_i].append(num_TP/(num_TP + num_FP))
+                if precision_mode == 0:
+                    precision = num_TPP/num_dets
+                elif precision_mode == 1:
+                    precision = num_TP/(num_TP + num_FP)
+                elif precision_mode == 2:
+                    precision = num_TP/num_dets
+                
+                precisions[class_i].append(precision)
                 recalls[class_i].append(num_TP/num_gts)
             precisions[class_i].append(0)
             recalls[class_i].append(num_TP/num_gts)
