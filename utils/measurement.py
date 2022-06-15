@@ -118,11 +118,13 @@ def create_score_mat(y_trues, *y_preds,
 
                 iou_scores = cal_iou(xywhc_true_class, xywhc_pred_class)
 
-                best_ious_true = np.max(iou_scores, axis=1)
-                best_ious_pred = np.max(iou_scores, axis=0) 
+                best_ious_pred = np.max(iou_scores, axis=0)
+                box_id_pred = np.argmax(iou_scores, axis=0)
 
-                num_TPP = sum(best_ious_pred >= iou_threshold)
-                num_TP = sum(best_ious_true >= iou_threshold)
+                iou_mask = best_ious_pred >= iou_threshold
+
+                num_TPP = sum(iou_mask)
+                num_TP = len(set(box_id_pred[iou_mask]))
                 
                 if precision_mode == 1:
                     denom_array[class_i, 0] -= (num_TPP - num_TP)
@@ -261,7 +263,7 @@ class PR_func(object):
                             xywhc_true_class, xywhc_pred_class)
                         best_ious_pred = np.max(iou_scores, axis=0)
 
-                        iou_mask = (best_ious_pred >= iou_threshold)
+                        iou_mask = best_ious_pred >= iou_threshold
                         iou_mask = iou_mask.astype("float32")
 
                         box_id_pred = np.argmax(iou_scores, axis=0) + num_gts
