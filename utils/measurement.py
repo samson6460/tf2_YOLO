@@ -121,10 +121,10 @@ def create_score_mat(y_trues, *y_preds,
                 best_ious_pred = np.max(iou_scores, axis=0)
                 box_id_pred = np.argmax(iou_scores, axis=0)
 
-                iou_mask = best_ious_pred >= iou_threshold
+                obj_mask = best_ious_pred >= iou_threshold
 
-                num_TPP = sum(iou_mask)
-                num_TP = len(set(box_id_pred[iou_mask]))
+                num_TPP = sum(obj_mask)
+                num_TP = len(set(box_id_pred[obj_mask]))
                 
                 if precision_mode == 1:
                     denom_array[class_i, 0] -= (num_TPP - num_TP)
@@ -252,7 +252,9 @@ class PR_func(object):
                 gts[class_i] = num_gts + num_P
 
                 if len(xywhc_pred_class) > 0:
-                    conf_pred = xywhc_pred_class[:, 4]
+                    box_conf = xywhc_pred_class[:, 4]
+                    class_prob = p_pred[..., 1][class_pred==class_i]
+                    joint_conf = box_conf*class_prob
                     if num_P > 0:
                         xywhc_true_class = np.reshape(
                             xywhc_true_class, (-1, 1, 5))
@@ -263,16 +265,16 @@ class PR_func(object):
                             xywhc_true_class, xywhc_pred_class)
                         best_ious_pred = np.max(iou_scores, axis=0)
 
-                        iou_mask = best_ious_pred >= iou_threshold
-                        iou_mask = iou_mask.astype("float32")
+                        obj_mask = best_ious_pred >= iou_threshold
+                        obj_mask = obj_mask.astype("float32")
 
                         box_id_pred = np.argmax(iou_scores, axis=0) + num_gts
                     else:
-                        iou_mask = np.zeros((len(xywhc_pred_class),))
-                        box_id_pred = iou_mask
+                        obj_mask = np.zeros((len(xywhc_pred_class),))
+                        box_id_pred = obj_mask
 
                     detection = np.stack(
-                        (conf_pred, box_id_pred, iou_mask), axis=1)
+                        (joint_conf, box_id_pred, obj_mask), axis=1)
                     
                     if (max_per_img is not None 
                             and len(detection) > max_per_img):    
