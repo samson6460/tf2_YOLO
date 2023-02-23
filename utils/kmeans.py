@@ -1,3 +1,6 @@
+"""Kmeans algorithm for Yolo anchor boxes.
+"""
+
 import numpy as np
 from numpy.random import rand
 import matplotlib.pyplot as plt
@@ -89,7 +92,7 @@ def kmeans(data, n_cluster, dist_func,
         loss = np.mean(dist_func(center, new_center))
         center = new_center
         if verbose:
-            print("epoch %2d: loss = %.4f" % (epoch, loss))
+            print(f"epoch {epoch:2d}: loss = {loss:.4f}")
         epoch += 1
         if loss < stop_dist or epoch > max_iternum:
             break

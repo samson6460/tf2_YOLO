@@ -4,6 +4,7 @@
 """Measurements for Yolo.
 """
 
+import warnings
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -65,13 +66,12 @@ def create_score_mat(y_trues, *y_preds,
     class_num = len(class_names)
 
     denom_array = np.zeros((class_num, 2))
-    TP_array = np.zeros((class_num, 2))
+    tp_array = np.zeros((class_num, 2))
     det_counts = np.zeros((class_num,), dtype="int")
 
-    for i in range(len(y_trues)):
-        y_true = y_trues[i]
-        y_pred = [y_preds[j][i] for j in range(len(y_preds))]
-        
+    for i_label, y_true in enumerate(y_trues):
+        y_pred = [y_preds[j][i_label] for j in range(len(y_preds))]
+
         xywhcp_true = decode(y_true,
                              class_num=class_num,
                              version=version)
@@ -91,7 +91,7 @@ def create_score_mat(y_trues, *y_preds,
         xywhc_pred = xywhcp_pred[..., :5]
         p_true = xywhcp_true[..., 5:]
         p_pred = xywhcp_pred[..., 5:]
-        
+
         if len(p_true) > 0:
             class_true = p_true[..., 0].astype("int")
         else:
@@ -105,10 +105,10 @@ def create_score_mat(y_trues, *y_preds,
             xywhc_true_class = xywhc_true[class_true==class_i]
             xywhc_pred_class = xywhc_pred[class_pred==class_i]
 
-            num_PP = len(xywhc_pred_class)
-            num_P = len(xywhc_true_class)
-            denom_array[class_i] += (num_PP, num_P)
-            det_counts[class_i] += num_PP
+            num_pp = len(xywhc_pred_class)
+            num_p = len(xywhc_true_class)
+            denom_array[class_i] += (num_pp, num_p)
+            det_counts[class_i] += num_pp
 
             if len(xywhc_true_class) > 0 and len(xywhc_pred_class) > 0:
                 xywhc_true_class = np.reshape(
@@ -123,22 +123,22 @@ def create_score_mat(y_trues, *y_preds,
 
                 obj_mask = best_ious_pred >= iou_threshold
 
-                num_TPP = sum(obj_mask)
-                num_TP = len(set(box_id_pred[obj_mask]))
-                
+                num_tpp = sum(obj_mask)
+                num_tp = len(set(box_id_pred[obj_mask]))
+
                 if precision_mode == 1:
-                    denom_array[class_i, 0] -= (num_TPP - num_TP)
+                    denom_array[class_i, 0] -= (num_tpp - num_tp)
                 if precision_mode > 0:
-                    num_TPP = num_TP
-                TP_array[class_i] += (num_TPP, num_TP)
-    score_table = np.true_divide(TP_array, denom_array)
+                    num_tpp = num_tp
+                tp_array[class_i] += (num_tpp, num_tp)
+    score_table = np.true_divide(tp_array, denom_array)
     score_table = pd.DataFrame(score_table)
     score_table.columns = ["precision", "recall"]
 
     precision = score_table["precision"]
     recall = score_table["recall"]
-    F1_score = (2*precision*recall)/(precision + recall)
-    score_table["F1-score"] = F1_score
+    f1_score = (2*precision*recall)/(precision + recall)
+    score_table["F1-score"] = f1_score
     score_table["gts"] = denom_array[:, 1].astype("int")
     score_table["dets"] = det_counts
 
@@ -147,7 +147,7 @@ def create_score_mat(y_trues, *y_preds,
     return score_table
 
 
-class PR_func(object):
+class PRfunc(object):
     """Create precision-reacll function.
 
     Args:
@@ -187,7 +187,7 @@ class PR_func(object):
             specifying the decode method, yolov1、v2 or v3.  
 
     Return:
-        `PR_func` instance, call this instance
+        `PRfunc` instance, call this instance
         with a recall value and it'll return
         a precision value.
     """
@@ -210,10 +210,9 @@ class PR_func(object):
         detections = [np.empty((0, 3), dtype="float32")
             for _ in range(class_num)]
 
-        for i_img in range(len(y_trues)):
-            y_true = y_trues[i_img]
-            y_pred = [y_preds[j][i_img] for j in range(len(y_preds))]
-            
+        for i_label, y_true in enumerate(y_trues):
+            y_pred = [y_preds[j][i_label] for j in range(len(y_preds))]
+
             xywhcp_true = decode(y_true,
                                  class_num=class_num,
                                  version=version)
@@ -233,7 +232,7 @@ class PR_func(object):
             xywhc_pred = xywhcp_pred[..., :5]
             p_true = xywhcp_true[..., 5:]
             p_pred = xywhcp_pred[..., 5:]
-            
+
             if len(p_true) > 0:
                 class_true = p_true[..., 0].astype("int")
             else:
@@ -248,14 +247,14 @@ class PR_func(object):
                 xywhc_pred_class = xywhc_pred[class_pred==class_i]
 
                 num_gts = gts[class_i]
-                num_P = len(xywhc_true_class)
-                gts[class_i] = num_gts + num_P
+                num_p = len(xywhc_true_class)
+                gts[class_i] = num_gts + num_p
 
                 if len(xywhc_pred_class) > 0:
                     box_conf = xywhc_pred_class[:, 4]
                     class_prob = p_pred[..., 1][class_pred==class_i]
                     joint_conf = box_conf*class_prob
-                    if num_P > 0:
+                    if num_p > 0:
                         xywhc_true_class = np.reshape(
                             xywhc_true_class, (-1, 1, 5))
                         xywhc_pred_class = np.reshape(
@@ -275,9 +274,9 @@ class PR_func(object):
 
                     detection = np.stack(
                         (joint_conf, box_id_pred, obj_mask), axis=1)
-                    
-                    if (max_per_img is not None 
-                            and len(detection) > max_per_img):    
+
+                    if (max_per_img is not None
+                            and len(detection) > max_per_img):
                         sort_index = np.argsort(detection[:, 0])[::-1]
                         detection = detection[sort_index]
                         detection = detection[:max_per_img]
@@ -297,28 +296,28 @@ class PR_func(object):
                 det = detection[:det_i + 1]
 
                 obj_mask = det[:, 2].astype("bool")
-                num_TP = len(set(det[:, 1][obj_mask]))
+                num_tp = len(set(det[:, 1][obj_mask]))
                 num_dets = len(det)
-                num_TPP = obj_mask.sum()
-                num_FP = num_dets - num_TPP
+                num_tpp = obj_mask.sum()
+                num_fp = num_dets - num_tpp
 
                 if precision_mode == 0:
-                    precision = num_TPP/num_dets
+                    precision = num_tpp/num_dets
                 elif precision_mode == 1:
-                    precision = num_TP/(num_TP + num_FP)
+                    precision = num_tp/(num_tp + num_fp)
                 elif precision_mode == 2:
-                    precision = num_TP/num_dets
-                
+                    precision = num_tp/num_dets
+
                 precisions[class_i].append(precision)
-                recalls[class_i].append(num_TP/num_gts)
+                recalls[class_i].append(num_tp/num_gts)
             precisions[class_i].append(0)
-            recalls[class_i].append(num_TP/num_gts)
+            recalls[class_i].append(num_tp/num_gts)
         precisions = [np.array(pc) for pc in precisions]
         recalls = [np.array(rc) for rc in recalls]
-        
+
         self.precisions = precisions
         self.recalls = recalls
-        
+
     def __call__(self, recall, class_idx=0):
         if class_idx >= self.class_num:
             raise IndexError("Class index out of range")
@@ -358,7 +357,7 @@ class PR_func(object):
                     max_pc = precisions[i]
                 else:
                     precisions[i] = max_pc
-        
+
         fig = plt.figure(figsize=figsize)
         plt.plot(recalls, precisions)
         plt.title("PR curve")
@@ -390,7 +389,7 @@ class PR_func(object):
             A Pandas.Dataframe
         """
         aps = [0 for _ in range(self.class_num)]
-        
+
         if mode == "area" or mode == "smootharea":
             for class_i in range(self.class_num):
                 if mode == "smootharea":
@@ -427,3 +426,11 @@ class PR_func(object):
         ap_table.index = list(self.class_names) + ["mAP"]
 
         return ap_table
+
+
+class PR_func(PRfunc):
+    def __init__(self, *args, **kwargs):
+        warnings.warn(
+            "`PR_func` is deprecated and renamed to `PRfunc`.",
+            Warning)
+        super().__init__(*args, **kwargs)

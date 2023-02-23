@@ -18,7 +18,7 @@ from .metrics import wrap_obj_acc, wrap_mean_iou
 from .metrics import wrap_class_acc, wrap_recall
 
 
-class Acc_type(object):
+class AccType(object):
     obj_acc = "obj_acc"
     mean_iou = "mean_iou"
     class_acc = "class_acc"
@@ -64,7 +64,7 @@ class Yolo(object):
         self.anchors = None
         self.model = None
         self.file_names = None
-        
+
     def create_model(self,
                      anchors=[[0.75157846, 0.70525231],
                               [0.60637077, 0.27136769],
@@ -96,7 +96,7 @@ class Yolo(object):
 
         self.model = yolo_head(model_body,
                                self.class_num,
-                               anchors)  
+                               anchors)
         if pretrained_weights is not None:
             self.model.load_weights(pretrained_weights)
         self.anchors = anchors
@@ -108,8 +108,6 @@ class Yolo(object):
         label_format="labelimg",
         rescale=1/255,
         preprocessing=None,
-        augmenter=None,
-        aug_times=1,
         shuffle=True, seed=None,
         encoding="big5",
         thread_num=10):
@@ -128,9 +126,6 @@ class Yolo(object):
                 If None, no scaled.
             preprocessing: A function of data preprocessing,
                 (e.g. noralization, shape manipulation, etc.)
-            augmenter: A `imgaug.augmenters.meta.Sequential` instance.
-            aug_times: An integer,
-                the default is 1, which means no augmentation.
             shuffle: Boolean, default: True.
             seed: An integer, random seed, default: None.
             encoding: A string,
@@ -144,21 +139,23 @@ class Yolo(object):
             - shape of img: (batch_size, img_heights, img_widths, channels)
             - shape of label: (batch_size, grid_heights, grid_widths, info)
         """
-        img_data, label_data, path_list = tools.read_file(
-            img_path=img_path, 
+        seq = tools.YoloDataSequence(
+            img_path=img_path,
             label_path=label_path,
             label_format=label_format,
-            size=self.input_shape[:2], 
-            grid_shape=self.grid_shape,
-            class_names=self.class_names,
+            size=self.input_shape[:2],
             rescale=rescale,
             preprocessing=preprocessing,
-            augmenter=augmenter,
-            aug_times=aug_times,
-            shuffle=shuffle, seed=seed,
+            grid_shape=self.grid_shape,
+            class_names=self.class_names,
+            shuffle=shuffle,
+            seed=seed,
             encoding=encoding,
             thread_num=thread_num)
-        self.file_names = path_list
+        self.file_names = seq.path_list
+        seq.batch_size = len(seq.path_list)
+
+        img_data, label_data = seq[0]
 
         return img_data, label_data
 
@@ -272,14 +269,14 @@ class Yolo(object):
             text_padcolor: A string or list, defalut: "auto".
             text_fontsize: 12.
         """
-        return tools.vis_img(img, 
-                             label_data, 
+        return tools.vis_img(img,
+                             label_data,
                              class_names=self.class_names,
                              conf_threshold=conf_threshold,
                              show_conf=show_conf,
-                             nms_mode=nms_mode,  
+                             nms_mode=nms_mode,
                              nms_threshold=nms_threshold,
-                             nms_sigma=nms_sigma,                             
+                             nms_sigma=nms_sigma,
                              version=2,
                              **kwargs)
 
@@ -310,13 +307,13 @@ class Yolo(object):
             loss_weight = loss_weight_list
         return wrap_yolo_loss(
             grid_shape=self.grid_shape,
-            bbox_num=self.abox_num, 
+            bbox_num=self.abox_num,
             class_num=self.class_num,
             anchors=self.anchors,
             binary_weight=binary_weight,
             loss_weight=loss_weight,
             ignore_thresh=ignore_thresh)
-    
+
     def metrics(self, type="obj_acc"):
         """Metrics of yolo.
 
@@ -329,30 +326,31 @@ class Yolo(object):
 
         Returns:
             A list of metric function conforming to tf.keras specification.
-        """   
-        metrics_list = []     
+        """
+        metrics_list = []
         if "obj" in type:
             metrics_list.append(
                 wrap_obj_acc(
-                    self.grid_shape, 
-                    self.abox_num, 
+                    self.grid_shape,
+                    self.abox_num,
                     self.class_num))
         if "iou" in type:
             metrics_list.append(
                 wrap_mean_iou(
-                    self.grid_shape, 
-                    self.abox_num, 
+                    self.grid_shape,
+                    self.abox_num,
                     self.class_num))
         if "class" in type:
             metrics_list.append(
                 wrap_class_acc(
-                    self.grid_shape, 
-                    self.abox_num, 
+                    self.grid_shape,
+                    self.abox_num,
                     self.class_num))
         if "recall" in type:
             iou_threshold = type[type.find("recall") + 6:]
             end = iou_threshold.rfind("+")
-            if end < 0: end = None
+            if end < 0:
+                end = None
             iou_threshold = iou_threshold[:end]
             if iou_threshold == "":
                 iou_threshold = 0.5
@@ -361,8 +359,8 @@ class Yolo(object):
 
             metrics_list.append(
                 wrap_recall(
-                    self.grid_shape, 
-                    self.abox_num, 
+                    self.grid_shape,
+                    self.abox_num,
                     self.class_num,
                     iou_threshold=iou_threshold))
         return metrics_list

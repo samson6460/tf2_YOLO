@@ -7,11 +7,11 @@
 __version__ = "4.1"
 __author__ = "Samson Woof"
 
+from collections.abc import Iterable
 from os import path
 import sys
 sys.path.append(path.join(path.dirname(__file__), '..'))
 
-from collections.abc import Iterable
 from tensorflow.keras.utils import Sequence
 from tensorflow.keras.applications import ResNet50V2
 from tensorflow.keras.applications import ResNet101V2
@@ -27,7 +27,7 @@ from .metrics import wrap_obj_acc, wrap_mean_iou
 from .metrics import wrap_class_acc, wrap_recall
 
 
-class Acc_type(object):
+class AccType(object):
     obj_acc = "obj_acc"
     mean_iou = "mean_iou"
     class_acc = "class_acc"
@@ -92,7 +92,7 @@ class Yolo(object):
         self.anchors = None
         self.model = None
         self.file_names = None
-        
+
     def create_model(self,
                      anchors=[[0.89663461, 0.78365384],
                               [0.37500000, 0.47596153],
@@ -130,7 +130,7 @@ class Yolo(object):
             pretrained_body = None
         else:
             pre_body_weights = None
-        
+
         if backbone == "full_darknet":
             model_body = yolo_body(self.input_shape,
                 pretrained_weights=pre_body_weights)
@@ -140,25 +140,25 @@ class Yolo(object):
             model_body = yolo_resnet90_body(self.input_shape)
         elif backbone == "resnet50v2":
             model_body = yolo_keras_app_body(ResNet50V2,
-                self.input_shape, fpn_id=[143, 75], 
+                self.input_shape, fpn_id=[143, 75],
                 pretrained_weights=pre_body_weights)
         elif backbone == "resnet101v2":
             model_body = yolo_keras_app_body(ResNet101V2,
-                self.input_shape, fpn_id=[143, 75], 
+                self.input_shape, fpn_id=[143, 75],
                 pretrained_weights=pre_body_weights)
         elif backbone == "resnet152v2":
             model_body = yolo_keras_app_body(ResNet152V2,
-                self.input_shape, fpn_id=[143, 75], 
+                self.input_shape, fpn_id=[143, 75],
                 pretrained_weights=pre_body_weights)
         else:
-            raise ValueError("Invalid backbone: %s" % backbone)
-        
+            raise ValueError(f"Invalid backbone: {backbone}")
+
         if pretrained_body is not None:
             model_body.set_weights(pretrained_body.get_weights())
         self.model = yolo_head(model_body,
                                self.class_num,
                                anchors)
-         
+
         if pretrained_weights is not None:
             self.model.load_weights(pretrained_weights)
         self.anchors = anchors
@@ -171,9 +171,8 @@ class Yolo(object):
         label_format="labelimg",
         rescale=1/255,
         preprocessing=None,
-        augmenter=None,
-        aug_times=1,
-        shuffle=True, seed=None,
+        shuffle=True,
+        seed=None,
         encoding="big5",
         thread_num=10):
         """Read the images and annotaions
@@ -191,9 +190,6 @@ class Yolo(object):
                 If None, no scaled.
             preprocessing: A function of data preprocessing,
                 (e.g. noralization, shape manipulation, etc.)
-            augmenter: A `imgaug.augmenters.meta.Sequential` instance.
-            aug_times: An integer,
-                the default is 1, which means no augmentation.
             shuffle: Boolean, default: True.
             seed: An integer, random seed, default: None.
             encoding: A string,
@@ -211,21 +207,24 @@ class Yolo(object):
         grid_amp = 2**(self.fpn_layers - 1)
         grid_shape = (self.grid_shape[0]*grid_amp,
                       self.grid_shape[1]*grid_amp)
-        img_data, label_data, path_list = tools.read_file(
-            img_path=img_path, 
+
+        seq = tools.YoloDataSequence(
+            img_path=img_path,
             label_path=label_path,
             label_format=label_format,
-            size=self.input_shape[:2], 
-            grid_shape=grid_shape,
-            class_names=self.class_names,
+            size=self.input_shape[:2],
             rescale=rescale,
             preprocessing=preprocessing,
-            augmenter=augmenter,
-            aug_times=aug_times,
-            shuffle=shuffle, seed=seed,
+            grid_shape=grid_shape,
+            class_names=self.class_names,
+            shuffle=shuffle,
+            seed=seed,
             encoding=encoding,
             thread_num=thread_num)
-        self.file_names = path_list
+        self.file_names = seq.path_list
+        seq.batch_size = len(seq.path_list)
+
+        img_data, label_data = seq[0]
 
         label_list = [label_data]
         for _ in range(self.fpn_layers - 1):
@@ -351,14 +350,14 @@ class Yolo(object):
             text_fontsize: 12.
         """
         return tools.vis_img(
-            img, 
-            *label_datas, 
+            img,
+            *label_datas,
             class_names=self.class_names,
             conf_threshold=conf_threshold,
             show_conf=show_conf,
-            nms_mode=nms_mode,  
+            nms_mode=nms_mode,
             nms_threshold=nms_threshold,
-            nms_sigma=nms_sigma,                     
+            nms_sigma=nms_sigma,
             version=3,
             **kwargs)
 
@@ -392,7 +391,7 @@ class Yolo(object):
         if (not isinstance(binary_weight, Iterable)
             or len(binary_weight) != self.fpn_layers):
             binary_weight = [binary_weight]*self.fpn_layers
-        
+
         if isinstance(loss_weight, dict):
             loss_weight_list = []
             loss_weight_list.append(loss_weight["xy"])
@@ -400,7 +399,7 @@ class Yolo(object):
             loss_weight_list.append(loss_weight["conf"])
             loss_weight_list.append(loss_weight["prob"])
             loss_weight = loss_weight_list
-        
+
         loss_list = []
         for fpn_id in range(self.fpn_layers):
             grid_amp = 2**(fpn_id)
@@ -409,7 +408,7 @@ class Yolo(object):
             anchors_id = self.abox_num*fpn_id
             loss_list.append(wrap_yolo_loss(
                 grid_shape=grid_shape,
-                bbox_num=self.abox_num, 
+                bbox_num=self.abox_num,
                 class_num=self.class_num,
                 anchors=self.anchors[
                     anchors_id:anchors_id + self.abox_num],
@@ -420,7 +419,7 @@ class Yolo(object):
                 focal_loss_gamma=focal_loss_gamma,
                 use_scale=use_scale))
         return loss_list
-    
+
     def metrics(self, type="obj_acc"):
         """Metrics of yolo.
 
@@ -439,29 +438,30 @@ class Yolo(object):
             grid_amp = 2**(fpn_id)
             grid_shape = (self.grid_shape[0]*grid_amp,
                             self.grid_shape[1]*grid_amp)
-            
+
             if "obj" in type:
                 metrics_list[fpn_id].append(
                     wrap_obj_acc(
                         grid_shape,
-                        self.abox_num, 
+                        self.abox_num,
                         self.class_num))
             if "iou" in type:
                 metrics_list[fpn_id].append(
                     wrap_mean_iou(
                         grid_shape,
-                        self.abox_num, 
+                        self.abox_num,
                         self.class_num))
             if "class" in type:
                 metrics_list[fpn_id].append(
                     wrap_class_acc(
                         grid_shape,
-                        self.abox_num, 
+                        self.abox_num,
                         self.class_num))
             if "recall" in type:
                 iou_threshold = type[type.find("recall") + 6:]
                 end = iou_threshold.rfind("+")
-                if end < 0: end = None
+                if end < 0:
+                    end = None
                 iou_threshold = iou_threshold[:end]
                 if iou_threshold == "":
                     iou_threshold = 0.5
@@ -471,7 +471,7 @@ class Yolo(object):
                 metrics_list[fpn_id].append(
                     wrap_recall(
                         grid_shape,
-                        self.abox_num, 
+                        self.abox_num,
                         self.class_num,
                         iou_threshold=iou_threshold))
         return metrics_list
