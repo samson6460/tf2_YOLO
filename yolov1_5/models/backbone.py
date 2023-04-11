@@ -1,3 +1,5 @@
+"""YOLOv1 Model Defined in Keras."""
+
 from tensorflow.keras.layers import Conv2D
 from tensorflow.keras.layers import MaxPooling2D
 from tensorflow.keras.layers import LeakyReLU
@@ -5,15 +7,17 @@ from tensorflow.keras.layers import BatchNormalization as BN
 
 
 def Conv2D_BN_Leaky(input_tensor, *args):
-    output_tensor = Conv2D(*args, 
+    """Convolution2D followed by BatchNormalization and LeakyReLU."""
+    output_tensor = Conv2D(*args,
                            padding='same',
                            kernel_initializer='he_normal')(input_tensor)
     output_tensor = BN()(output_tensor)
     output_tensor = LeakyReLU(alpha=0.1)(output_tensor)
     return output_tensor
 
-def darknet_body(x):
-    conv1 = Conv2D_BN_Leaky(x, 64, 7, 2)
+def darknet_body(tensor):
+    """Body of DarkNetv1."""
+    conv1 = Conv2D_BN_Leaky(tensor, 64, 7, 2)
     pool1 = MaxPooling2D(pool_size=(2, 2))(conv1)
 
     conv2 = Conv2D_BN_Leaky(pool1, 192, 3)

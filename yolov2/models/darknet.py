@@ -1,3 +1,5 @@
+"""Darknet definition for YOLOv2."""
+
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.models import Model
@@ -14,12 +16,13 @@ from .backbone import unet_body
 
 
 def darknet19(input_shape=(416, 416, 3), class_num=10):
+    """DarkNet19 model."""
     inputs = Input(input_shape)
     darknet_outputs = darknet_body(inputs)
 
     conv = Conv2D_BN_Leaky(darknet_outputs, class_num, 1)
-    x = GlobalAveragePooling2D()(conv)
-    outputs = Softmax()(x)
+    tensor = GlobalAveragePooling2D()(conv)
+    outputs = Softmax()(tensor)
 
     model = Model(inputs, outputs)
 
@@ -29,6 +32,7 @@ def darknet19(input_shape=(416, 416, 3), class_num=10):
 def yolo_body(input_shape=(416, 416, 3),
               backbone="darknet",
               pretrained_backbone=None):
+    """Body of YOLOv2."""
     inputs = Input(input_shape)
     if backbone == "darknet":
         darknet = Model(inputs, darknet_body(inputs))
@@ -56,17 +60,18 @@ def yolo_body(input_shape=(416, 416, 3),
                                 weights=pretrained_backbone)
         outputs = mobilenet(inputs)
     else:
-        raise ValueError("Invalid backbone: %s" % backbone)
+        raise ValueError(f"Invalid backbone: {backbone}")
     model = Model(inputs, outputs)
     return model
 
 
-def yolo_head(model_body, class_num=10, 
+def yolo_head(model_body, class_num=10,
               anchors=[(0.04405615, 0.05210654),
                        (0.14418923, 0.15865615),
                        (0.25680231, 0.42110308),
                        (0.60637077, 0.27136769),
                        (0.75157846, 0.70525231)]):
+    """Head of YOLOv2."""
     anchors = np.array(anchors)
     inputs = model_body.input
     output = model_body.output
@@ -96,6 +101,6 @@ def yolo_head(model_body, class_num=10,
 
     outputs = concatenate(output_list, axis=-1)
 
-    model = Model(inputs, outputs)    
+    model = Model(inputs, outputs)
 
     return model

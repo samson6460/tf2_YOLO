@@ -18,7 +18,8 @@ from .metrics import wrap_obj_acc, wrap_mean_iou
 from .metrics import wrap_class_acc, wrap_recall
 
 
-class AccType(object):
+class MetricType(object):
+    """names of metric type"""
     obj_acc = "obj_acc"
     mean_iou = "mean_iou"
     class_acc = "class_acc"
@@ -41,7 +42,7 @@ class Yolo(object):
     Attributes:
         input_shape
         class_names
-        grid_shape: A tuple or list of integers(heights, widths), 
+        grid_shape: A tuple or list of integers(height, width), 
             input images will be divided into 
             grid_shape[0] x grid_shape[1] grids.
         bbox_num: An integer, the number of bounding boxes.
@@ -122,8 +123,8 @@ class Yolo(object):
 
         Returns:
             A tuple of 2 ndarrays, (img, label),
-            - shape of img: (batch_size, img_heights, img_widths, channel)
-            - shape of label: (batch_size, grid_heights, grid_widths, info)
+            - shape of img: (batch size, img height, img width, channels)
+            - shape of label: (batch size, grid height, grid width, channels)
         """
         seq = tools.YoloDataSequence(
             img_path=img_path,
@@ -185,8 +186,8 @@ class Yolo(object):
         Returns:
             A tf.Sequence: 
                 Sequence[i]: (img, label)
-            - shape of img: (batch_size, img_heights, img_widths, channel)
-            - shape of label: (batch_size, grid_heights, grid_widths, info)
+            - shape of img: (batch size, img height, img width, channels)
+            - shape of label: (batch size, grid height, grid width, channels)
         """
         seq = tools.YoloDataSequence(
             img_path=img_path,
@@ -217,9 +218,9 @@ class Yolo(object):
         """Visualize the images and annotaions by pyplot.
 
         Args:
-            img: A ndarray of shape(img_heights, img_widths, channels).
+            img: A ndarray of shape(img height, img width, channels).
             label_data: A ndarray,
-                shape: (grid_heights, grid_widths, info).
+                shape: (grid height, grid width, channels).
             conf_threshold: A float,
                 threshold for quantizing output.
             show_conf: A boolean, whether to show confidence score.
@@ -323,7 +324,6 @@ class Yolo(object):
             metrics_list.append(
                 wrap_class_acc(
                     self.grid_shape,
-                    self.bbox_num,
                     self.class_num))
         if "recall" in type:
             iou_threshold = type[type.find("recall") + 6:]

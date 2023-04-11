@@ -1,36 +1,39 @@
+"""YOLO_v3 loss."""
+
 import tensorflow as tf
 import numpy as np
 
-epsilon = 1e-07
+EPSILON = 1e-07
 
 
 def cal_iou(xywh_true, xywh_pred, grid_shape):
+    """Calculate IOU of two tensors."""
     grid_shape = np.array(grid_shape[::-1])
     xy_true = xywh_true[..., 0:2]/grid_shape # N*S*S*1*2
     wh_true = xywh_true[..., 2:4]
 
     xy_pred = xywh_pred[..., 0:2]/grid_shape # N*S*S*B*2
     wh_pred = xywh_pred[..., 2:4]
-    
-    half_xy_true = wh_true / 2.
-    mins_true    = xy_true - half_xy_true
-    maxes_true   = xy_true + half_xy_true
 
-    half_xy_pred = wh_pred / 2.
-    mins_pred    = xy_pred - half_xy_pred
-    maxes_pred   = xy_pred + half_xy_pred       
-    
+    half_wh_true = wh_true / 2.
+    mins_true    = xy_true - half_wh_true
+    maxes_true   = xy_true + half_wh_true
+
+    half_wh_pred = wh_pred / 2.
+    mins_pred    = xy_pred - half_wh_pred
+    maxes_pred   = xy_pred + half_wh_pred
+
     intersect_mins  = tf.maximum(mins_pred,  mins_true)
     intersect_maxes = tf.minimum(maxes_pred, maxes_true)
     intersect_wh    = tf.maximum(intersect_maxes - intersect_mins, 0.)
     intersect_areas = intersect_wh[..., 0] * intersect_wh[..., 1]
-    
+
     true_areas = wh_true[..., 0] * wh_true[..., 1]
     pred_areas = wh_pred[..., 0] * wh_pred[..., 1]
 
     union_areas = pred_areas + true_areas - intersect_areas
-    iou_scores  = (intersect_areas + epsilon)/(union_areas + epsilon)
-    
+    iou_scores  = (intersect_areas + EPSILON)/(union_areas + EPSILON)
+
     return iou_scores
 
 
@@ -44,6 +47,7 @@ def wrap_yolo_loss(grid_shape,
                    use_focal_loss=False,
                    focal_loss_gamma=2,
                    use_scale=True):
+    """Wrapped YOLOv3 loss function."""
     def yolo_loss(y_true, y_pred):
         if anchors is None:
             panchors = 1
@@ -77,9 +81,9 @@ def wrap_yolo_loss(grid_shape,
         xy_true = y_true[..., 0:2] # N*S*S*1*2
         xy_pred = y_pred[..., 0:2] # N*S*S*B*2
 
-        wh_true = tf.maximum(y_true[..., 2:4]/panchors, epsilon) # N*S*S*1*2
+        wh_true = tf.maximum(y_true[..., 2:4]/panchors, EPSILON) # N*S*S*1*2
         wh_pred = y_pred[..., 2:4]/panchors
-        
+
         wh_true = tf.math.log(wh_true) # N*S*S*B*2
         wh_pred = tf.math.log(wh_pred) # N*S*S*B*2
 
@@ -105,7 +109,7 @@ def wrap_yolo_loss(grid_shape,
             axis=0))
 
         if use_focal_loss:
-            c_pred = tf.clip_by_value(c_pred, epsilon, 1 - epsilon)
+            c_pred = tf.clip_by_value(c_pred, EPSILON, 1 - EPSILON)
 
             has_obj_c_loss = -tf.reduce_sum(
                 tf.reduce_mean(
@@ -113,7 +117,7 @@ def wrap_yolo_loss(grid_shape,
                 *((1 - c_pred)**focal_loss_gamma)
                 *tf.math.log(c_pred),
                 axis=0))
-            
+
             no_obj_c_loss = -tf.reduce_sum(
                 tf.reduce_mean(
                 no_obj_mask # N*S*S*B
@@ -132,13 +136,13 @@ def wrap_yolo_loss(grid_shape,
                 no_obj_mask # N*S*S*1
                 *(tf.square(0 - c_pred)), # N*S*S*B
                 axis=0))
-        
+
         c_loss = has_obj_c_loss + binary_weight*no_obj_c_loss
 
         p_true = y_true[..., -class_num:] # N*S*S*1*C
         p_pred = y_pred[..., -class_num:] # N*S*S*B*C
 
-        p_pred = tf.clip_by_value(p_pred, epsilon, 1 - epsilon)
+        p_pred = tf.clip_by_value(p_pred, EPSILON, 1 - EPSILON)
         p_loss = -tf.reduce_sum(
             tf.reduce_mean(
             has_obj_mask_exp # N*S*S*B*1

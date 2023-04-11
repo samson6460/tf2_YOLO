@@ -1,4 +1,4 @@
-"""YOLO_v3 Model Defined in Keras.
+"""YOLOv3 Model Defined in Keras.
 
 Modified from https://github.com/qqwweee/keras-yolo3."""
 
@@ -12,7 +12,6 @@ from tensorflow.keras.layers import UpSampling2D
 from tensorflow.keras.layers import Concatenate
 from tensorflow.keras.layers import LeakyReLU
 from tensorflow.keras.layers import BatchNormalization
-from tensorflow.keras.regularizers import l2
 
 
 def compose(*funcs):
@@ -20,11 +19,9 @@ def compose(*funcs):
 
     Reference: https://mathieularose.com/function-composition-in-python/
     """
-    # return lambda x: reduce(lambda v, f: f(v), funcs, x)
     if funcs:
         return reduce(lambda f, g: lambda *a, **kw: g(f(*a, **kw)), funcs)
-    else:
-        raise ValueError('Composition of empty sequence not supported.')
+    raise ValueError('Composition of empty sequence not supported.')
 
 
 @wraps(Conv2D)
@@ -49,72 +46,46 @@ def DarknetConv2D_BN_Leaky(*args, **kwargs):
         LeakyReLU(alpha=0.1))
 
 
-def resblock_body(x, num_filters, num_blocks):
+def resblock_body(tensor, num_filters, num_blocks):
     '''A series of resblocks starting with a downsampling Convolution2D'''
     # Darknet uses left and top padding instead of 'same' mode
-    x = ZeroPadding2D(((1, 0), (1, 0)))(x)
-    x = DarknetConv2D_BN_Leaky(num_filters, (3, 3), strides=(2, 2))(x)
+    tensor = ZeroPadding2D(((1, 0), (1, 0)))(tensor)
+    tensor = DarknetConv2D_BN_Leaky(num_filters, (3, 3), strides=(2, 2))(tensor)
     for _ in range(num_blocks):
-        y = compose(
+        main_tensor = compose(
             DarknetConv2D_BN_Leaky(num_filters//2, (1, 1)),
-            DarknetConv2D_BN_Leaky(num_filters, (3, 3)))(x)
-        x = Add()([x, y])
-    return x
+            DarknetConv2D_BN_Leaky(num_filters, (3, 3)))(tensor)
+        tensor = Add()([tensor, main_tensor])
+    return tensor
 
 
-def resblock_module(x, num_filters, num_blocks):
-    y = DarknetConv2D_BN_Leaky(num_filters, (1, 1), 2)(x)
-    x = compose(DarknetConv2D_BN_Leaky(num_filters//2, (1, 1), 2),
-                DarknetConv2D_BN_Leaky(num_filters//2, (3, 3)),
-                DarknetConv2D_BN_Leaky(num_filters, (1, 1)))(x)
-    x = Add()([x, y])
-    for _ in range(num_blocks):
-        y = compose(
-            DarknetConv2D_BN_Leaky(num_filters//2, (1, 1)),
-            DarknetConv2D_BN_Leaky(num_filters//2, (3, 3)),
-            DarknetConv2D_BN_Leaky(num_filters, (1, 1)))(x)
-        x = Add()([x, y])
-    return x
-
-
-def darknet_body(x):
+def darknet_body(tensor):
     '''Darknent body having 52 Convolution2D layers'''
-    x = DarknetConv2D_BN_Leaky(32, (3, 3))(x)
-    x = resblock_body(x, 64, 1)
-    x = resblock_body(x, 128, 2)
-    x = resblock_body(x, 256, 8)
-    x = resblock_body(x, 512, 8)
-    x = resblock_body(x, 1024, 4)
-    return x
+    tensor = DarknetConv2D_BN_Leaky(32, (3, 3))(tensor)
+    tensor = resblock_body(tensor, 64, 1)
+    tensor = resblock_body(tensor, 128, 2)
+    tensor = resblock_body(tensor, 256, 8)
+    tensor = resblock_body(tensor, 512, 8)
+    tensor = resblock_body(tensor, 1024, 4)
+    return tensor
 
 
-def resnet_body(x):
-    '''Resnent body having 90 Convolution2D layers'''
-    x = DarknetConv2D_BN_Leaky(32, (3, 3))(x)
-    x = resblock_module(x, 64, 1)
-    x = resblock_module(x, 128, 2)
-    x = resblock_module(x, 256, 8)
-    x = resblock_module(x, 512, 8)
-    x = resblock_module(x, 1024, 4)
-    return x
-
-
-def make_last_layers(x, num_filters):
+def make_last_layers(tensor, num_filters):
     '''6 Conv2D_BN_Leaky layers followed by a Conv2D_linear layer'''
-    x = compose(
-            DarknetConv2D_BN_Leaky(num_filters, (1, 1)),
-            DarknetConv2D_BN_Leaky(num_filters*2, (3, 3)),
-            DarknetConv2D_BN_Leaky(num_filters, (1, 1)),
-            DarknetConv2D_BN_Leaky(num_filters*2, (3, 3)),
-            DarknetConv2D_BN_Leaky(num_filters, (1, 1)))(x)
-    y = DarknetConv2D_BN_Leaky(num_filters*2, (3, 3))(x)
-    return x, y
+    tensor = compose(
+        DarknetConv2D_BN_Leaky(num_filters, (1, 1)),
+        DarknetConv2D_BN_Leaky(num_filters*2, (3, 3)),
+        DarknetConv2D_BN_Leaky(num_filters, (1, 1)),
+        DarknetConv2D_BN_Leaky(num_filters*2, (3, 3)),
+        DarknetConv2D_BN_Leaky(num_filters, (1, 1)))(tensor)
+    out_tensor = DarknetConv2D_BN_Leaky(num_filters*2, (3, 3))(tensor)
+    return tensor, out_tensor
 
 
 def yolo_keras_app_body(model_func,
         input_shape=(416, 416, 3),
         pretrained_weights="imagenet",
-        fpn_id=[],
+        fpn_id:list=[],
         num_filters=512):
     """Create any model body from
        tensorflow.python.keras.applications."""
@@ -123,17 +94,17 @@ def yolo_keras_app_body(model_func,
         weights=pretrained_weights,
         input_shape=input_shape)
     inputs = appnet.input
-    
-    x, y = make_last_layers(appnet.output, num_filters)
-    output_list = [y]
 
-    for id in fpn_id:
+    tensor, out_tensor = make_last_layers(appnet.output, num_filters)
+    output_list = [out_tensor]
+
+    for idx in fpn_id:
         num_filters //= 2
-        x = compose(
-                DarknetConv2D_BN_Leaky(num_filters, (1, 1)),
-                UpSampling2D(2))(x)
-        x = Concatenate()([x, appnet.layers[id].output])
-        x, y = make_last_layers(x, num_filters)
-        output_list.append(y)
+        tensor = compose(
+            DarknetConv2D_BN_Leaky(num_filters, (1, 1)),
+            UpSampling2D(2))(tensor)
+        tensor = Concatenate()([tensor, appnet.layers[idx].output])
+        tensor, out_tensor = make_last_layers(tensor, num_filters)
+        output_list.append(out_tensor)
 
     return Model(inputs, output_list)

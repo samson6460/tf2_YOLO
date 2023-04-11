@@ -4,7 +4,7 @@
 """Yolo V3.
 """
 
-__version__ = "4.1"
+__version__ = "4.2"
 __author__ = "Samson Woof"
 
 from collections.abc import Iterable
@@ -13,13 +13,16 @@ import sys
 sys.path.append(path.join(path.dirname(__file__), '..'))
 
 from tensorflow.keras.utils import Sequence
+
+from tensorflow.keras.applications import ResNet50
+from tensorflow.keras.applications import ResNet101
+from tensorflow.keras.applications import ResNet152
 from tensorflow.keras.applications import ResNet50V2
 from tensorflow.keras.applications import ResNet101V2
 from tensorflow.keras.applications import ResNet152V2
 
 from utils import tools
 from .models import yolo_body, tiny_yolo_body
-from .models import yolo_resnet90_body
 from .models import yolo_keras_app_body
 from .models import yolo_head
 from .losses import wrap_yolo_loss
@@ -27,14 +30,15 @@ from .metrics import wrap_obj_acc, wrap_mean_iou
 from .metrics import wrap_class_acc, wrap_recall
 
 
-class AccType(object):
+class MetricType(object):
+    """names of metric type"""
     obj_acc = "obj_acc"
     mean_iou = "mean_iou"
     class_acc = "class_acc"
     recall = "recall"
 
 
-class Yolov3DataSequence(Sequence):
+class _Yolov3DataSequence(Sequence):
     def __init__(self, seq, fpn_layers):
         self.seq = seq
         self.fpn_layers = fpn_layers
@@ -52,10 +56,10 @@ class Yolov3DataSequence(Sequence):
 class Yolo(object):
     """Yolo class.
 
-    Use read_file_to_dataset() to read dataset、
-    Use vis_img() to visualize the images and annotations. 
-    create_model() to create a tf.keras Model.
-    Compile the model by using loss()、metrics().
+    1. Use read_file_to_dataset() or read_file_to_sequence to read dataset.
+    2. Use vis_img() to visualize the images and annotations. 
+    3. Use create_model() to create a tf.keras Model.
+    4. Compile the model by using loss(), metrics().
 
     Args:
         input_shape: A tuple of 3 integers,
@@ -82,7 +86,7 @@ class Yolo(object):
 
     def __init__(self,
                  input_shape=(416, 416, 3),
-                 class_names=[]):
+                 class_names:list=[]):
         self.input_shape = input_shape
         self.grid_shape = input_shape[0]//32, input_shape[1]//32
         self.abox_num = 3
@@ -110,17 +114,17 @@ class Yolo(object):
 
         Args:
             anchors: 2D array like, 
-                prior anchor boxes(widths, heights),
+                prior anchor boxes(width, height),
                 all the values should be normalize to 0-1.
             backbone: A string,
-                one of "full_darknet"、"tiny_darknet"、
-                "resnet90"、"resnet50v2"、"resnet101v2"、
-                "resnet152v2".
+                one of "full_darknet", "tiny_darknet", 
+                "resnet50", "resnet101", "resnet152",
+                "resnet50v2", "resnet101v2", "resnet152v2".
             pretrained_weights: A string, 
                 file path of pretrained model.
-            pretrained_body: None、"pascal_voc"(only for `full_darknet`)
-                、"imagenet"(only for `resnetXXX`) or tf.keras model
-                which allows any input shape.
+            pretrained_body: None、"pascal_voc"(only for `full_darknet`),
+                "imagenet"(only for `resnetXXX`) or tf.keras model
+                which allows input shape of (32x, 32x, 3).
 
         Returns:
             A tf.keras Model.
@@ -136,8 +140,18 @@ class Yolo(object):
                 pretrained_weights=pre_body_weights)
         elif backbone == "tiny_darknet":
             model_body = tiny_yolo_body(self.input_shape)
-        elif backbone == "resnet90":
-            model_body = yolo_resnet90_body(self.input_shape)
+        elif backbone == "resnet50":
+            model_body = yolo_keras_app_body(ResNet50,
+                self.input_shape, fpn_id=[-33, 80],
+                pretrained_weights=pre_body_weights)
+        elif backbone == "resnet101":
+            model_body = yolo_keras_app_body(ResNet101,
+                self.input_shape, fpn_id=[-33, 80],
+                pretrained_weights=pre_body_weights)
+        elif backbone == "resnet152":
+            model_body = yolo_keras_app_body(ResNet152,
+                self.input_shape, fpn_id=[-33, 80],
+                pretrained_weights=pre_body_weights)
         elif backbone == "resnet50v2":
             model_body = yolo_keras_app_body(ResNet50V2,
                 self.input_shape, fpn_id=[143, 75],
@@ -201,8 +215,8 @@ class Yolo(object):
         Returns:
             A tuple: (img: ndarray, label_list: list),
             label_list contains the label of all FPN layers.
-            - shape of img: (batch_size, img_heights, img_widths, channels)
-            - shape of label: (batch_size, grid_heights, grid_widths, info)
+            - shape of img: (batch size, img height, img width, channels)
+            - shape of label: (batch size, grid height, grid width, channels)
         """
         grid_amp = 2**(self.fpn_layers - 1)
         grid_shape = (self.grid_shape[0]*grid_amp,
@@ -274,8 +288,8 @@ class Yolo(object):
             A tf.Sequence: 
                 Sequence[i]: (img: ndarray, label_list: list),
             label_list contains the label of all FPN layers.
-            - shape of img: (batch_size, img_heights, img_widths, channels)
-            - shape of label: (batch_size, grid_heights, grid_widths, info)
+            - shape of img: (batch size, img height, img width, channels)
+            - shape of label: (batch size, grid height, grid width, channels)
         """
         grid_amp = 2**(self.fpn_layers - 1)
         grid_shape = (self.grid_shape[0]*grid_amp,
@@ -297,7 +311,7 @@ class Yolo(object):
             thread_num=thread_num)
         self.file_names = seq.path_list
 
-        v3seq = Yolov3DataSequence(seq, self.fpn_layers)
+        v3seq = _Yolov3DataSequence(seq, self.fpn_layers)
 
         return v3seq
 
@@ -311,9 +325,9 @@ class Yolo(object):
         """Visualize the images and annotaions by pyplot.
 
         Args:
-            img: A ndarray of shape(img_heights, img_widths, channels).
+            img: A ndarray of shape(img height, img width, channels).
             *label_datas: Ndarrays,
-                shape: (grid_heights, grid_widths, info).
+                shape: (grid height, grid width, channels).
                 Multiple label data can be given at once.
             conf_threshold: A float,
                 threshold for quantizing output.

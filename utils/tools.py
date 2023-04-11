@@ -105,7 +105,7 @@ class YoloDataSequence(Sequence):
                  rescale=1/255,
                  preprocessing=None,
                  grid_shape=(7, 7),
-                 class_names=[""],
+                 class_names:list=[""],
                  augmenter=None,
                  shuffle=True,
                  seed=None,
@@ -405,7 +405,7 @@ def decode(*label_datas,
 
 def vis_img(img,
             *label_datas,
-            class_names=[""],
+            class_names:list=[""],
             conf_threshold=0.5,
             show_conf=True,
             nms_mode=0,
@@ -599,19 +599,19 @@ def cal_iou(xywh_true, xywh_pred):
     Returns:
         An iou_scores array.
     """
-    xy_true = xywh_true[..., 0:2] # N*1*1*1*(S*S)*2
+    xy_true = xywh_true[..., 0:2] # N*S*S*1*2
     wh_true = xywh_true[..., 2:4]
 
-    xy_pred = xywh_pred[..., 0:2] # N*S*S*B*1*2
+    xy_pred = xywh_pred[..., 0:2] # N*S*S*B*2
     wh_pred = xywh_pred[..., 2:4]
 
-    half_xy_true = wh_true / 2.
-    mins_true    = xy_true - half_xy_true
-    maxes_true   = xy_true + half_xy_true
+    half_wh_true = wh_true / 2.
+    mins_true    = xy_true - half_wh_true
+    maxes_true   = xy_true + half_wh_true
 
-    half_xy_pred = wh_pred / 2.
-    mins_pred    = xy_pred - half_xy_pred
-    maxes_pred   = xy_pred + half_xy_pred
+    half_wh_pred = wh_pred / 2.
+    mins_pred    = xy_pred - half_wh_pred
+    maxes_pred   = xy_pred + half_wh_pred
 
     intersect_mins  = np.maximum(mins_pred,  mins_true)
     intersect_maxes = np.minimum(maxes_pred, maxes_true)

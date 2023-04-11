@@ -1,3 +1,5 @@
+"""Darknet definition for YOLOv1."""
+
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Input
 from tensorflow.keras.layers import Dense
@@ -9,11 +11,12 @@ from .backbone import darknet_body
 
 
 def darknet(input_shape=(224, 224, 3), class_num=10):
+    """DarkNetv1 model."""
     inputs = Input(input_shape)
     darknet_outputs = darknet_body(inputs)
 
-    x = GlobalAveragePooling2D()(darknet_outputs)
-    outputs = Dense(class_num, activation="softmax")(x)
+    tensor = GlobalAveragePooling2D()(darknet_outputs)
+    outputs = Dense(class_num, activation="softmax")(tensor)
 
     model = Model(inputs, outputs)
 
@@ -21,16 +24,18 @@ def darknet(input_shape=(224, 224, 3), class_num=10):
 
 
 def yolo_body(input_shape=(448, 448, 3), pretrained_darknet=None):
+    """Body of YOLOv1."""
     inputs = Input(input_shape)
-    darknet = Model(inputs, darknet_body(inputs))
+    darknet_model = Model(inputs, darknet_body(inputs))
 
     if pretrained_darknet is not None:
-        darknet.set_weights(pretrained_darknet.get_weights())
-    
-    return darknet
+        darknet_model.set_weights(pretrained_darknet.get_weights())
+
+    return darknet_model
 
 
 def yolo_head(model_body, bbox_num=2, class_num=10):
+    """Head of YOLOv1."""
     inputs = model_body.input
     output = model_body.output
 

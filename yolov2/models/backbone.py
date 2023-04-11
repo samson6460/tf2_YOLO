@@ -1,3 +1,5 @@
+"""Backbone definition for YOLOv2."""
+
 from tensorflow.keras.layers import Conv2D
 from tensorflow.keras.layers import MaxPooling2D
 from tensorflow.keras.layers import UpSampling2D
@@ -7,7 +9,8 @@ from tensorflow.keras.layers import BatchNormalization as BN
 
 
 def Conv2D_BN_Leaky(input_tensor, *args):
-    output_tensor = Conv2D(*args, 
+    """Convolution2D followed by BatchNormalization and LeakyReLU."""
+    output_tensor = Conv2D(*args,
                            padding='same',
                            kernel_initializer='he_normal')(input_tensor)
     output_tensor = BN()(output_tensor)
@@ -16,6 +19,7 @@ def Conv2D_BN_Leaky(input_tensor, *args):
 
 
 def Conv2D_Acti_BN(input_tensor, activation, *args):
+    """Convolution2D followed by activation and BatchNormalization."""
     output_tensor = Conv2D(*args,
                            activation=activation,
                            padding='same',
@@ -25,6 +29,7 @@ def Conv2D_Acti_BN(input_tensor, activation, *args):
 
 
 def UpConv2D_Acti_BN(input_tensor, activation, *args):
+    """UpConvolution2D followed by activation and BatchNormalization."""
     output_tensor = UpSampling2D(size = (2,2))(input_tensor)
     output_tensor = Conv2D(*args,
                            activation=activation,
@@ -35,6 +40,7 @@ def UpConv2D_Acti_BN(input_tensor, activation, *args):
 
 
 def darknet_body(input_tensor):
+    """Body of DarkNet19."""
     conv1 = Conv2D_BN_Leaky(input_tensor, 32, 3)
     pool1 = MaxPooling2D(pool_size=(2, 2))(conv1)
 
@@ -68,6 +74,7 @@ def darknet_body(input_tensor):
 
 
 def unet_body(input_tensor):
+    """Body of UNet."""
     conv1 = Conv2D_Acti_BN(input_tensor, "relu", 64, 3)
     conv1 = Conv2D_Acti_BN(conv1, "relu", 64, 3)
     pool1 = MaxPooling2D(pool_size=(2, 2))(conv1)
