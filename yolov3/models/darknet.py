@@ -77,19 +77,20 @@ def yolo_body(input_shape=(416, 416, 3),
     if pretrained_darknet is not None:
         darknet.set_weights(pretrained_darknet.get_weights())
 
-    tensor, out_tensor1 = make_last_layers(darknet.output, 512)
+    tensor, out_tensor1 = make_last_layers(
+        darknet.output, 512, name="last1")
 
     tensor = compose(
-        DarknetConv2D_BN_Leaky(256, (1, 1)),
-        UpSampling2D(2))(tensor)
-    tensor = Concatenate()([tensor, darknet.layers[152].output])
-    tensor, out_tensor2 = make_last_layers(tensor, 256)
+        DarknetConv2D_BN_Leaky(256, 1, name="up1"),
+        UpSampling2D(2, name="up1_up"))(tensor)
+    tensor = Concatenate(name="concat1")([tensor, darknet.layers[152].output])
+    tensor, out_tensor2 = make_last_layers(tensor, 256, name="last2")
 
     tensor = compose(
-        DarknetConv2D_BN_Leaky(128, (1, 1)),
-        UpSampling2D(2))(tensor)
-    tensor = Concatenate()([tensor, darknet.layers[92].output])
-    tensor, out_tensor3 = make_last_layers(tensor, 128)
+        DarknetConv2D_BN_Leaky(128, 1, name="up2"),
+        UpSampling2D(2, name="up2_up"))(tensor)
+    tensor = Concatenate(name="concat2")([tensor, darknet.layers[92].output])
+    tensor, out_tensor3 = make_last_layers(tensor, 128, name="last3")
     model = Model(inputs, [out_tensor1, out_tensor2, out_tensor3])
 
     if pretrained_weights is not None:
@@ -107,28 +108,28 @@ def tiny_yolo_body(input_shape=(416, 416, 3)):
     '''Create Tiny YOLO_v3 model CNN body in keras.'''
     inputs = Input(input_shape)
     tensor1 = compose(
-        DarknetConv2D_BN_Leaky(16, (3, 3)),
+        DarknetConv2D_BN_Leaky(16, 3),
         MaxPooling2D(2, strides=(2, 2), padding='same'),
-        DarknetConv2D_BN_Leaky(32, (3, 3)),
+        DarknetConv2D_BN_Leaky(32, 3),
         MaxPooling2D(2, strides=(2, 2), padding='same'),
-        DarknetConv2D_BN_Leaky(64, (3, 3)),
+        DarknetConv2D_BN_Leaky(64, 3),
         MaxPooling2D(2, strides=(2, 2), padding='same'),
-        DarknetConv2D_BN_Leaky(128, (3, 3)),
+        DarknetConv2D_BN_Leaky(128, 3),
         MaxPooling2D(2, strides=(2, 2), padding='same'),
-        DarknetConv2D_BN_Leaky(256, (3, 3)))(inputs)
+        DarknetConv2D_BN_Leaky(256, 3))(inputs)
     tensor2 = compose(
         MaxPooling2D(2, strides=(2, 2), padding='same'),
-        DarknetConv2D_BN_Leaky(512, (3, 3)),
+        DarknetConv2D_BN_Leaky(512, 3),
         MaxPooling2D(2, strides=(1, 1), padding='same'),
-        DarknetConv2D_BN_Leaky(1024, (3, 3)),
-        DarknetConv2D_BN_Leaky(256, (1, 1)))(tensor1)
-    out_tensor1 = DarknetConv2D_BN_Leaky(512, (3, 3))(tensor2)
+        DarknetConv2D_BN_Leaky(1024, 3),
+        DarknetConv2D_BN_Leaky(256, 1))(tensor1)
+    out_tensor1 = DarknetConv2D_BN_Leaky(512, 3)(tensor2)
 
     tensor2 = compose(
-        DarknetConv2D_BN_Leaky(128, (1, 1)),
+        DarknetConv2D_BN_Leaky(128, 1),
         UpSampling2D(2))(tensor2)
     out_tensor2 = compose(
         Concatenate(),
-        DarknetConv2D_BN_Leaky(256, (3, 3)))([tensor2, tensor1])
+        DarknetConv2D_BN_Leaky(256, 3))([tensor2, tensor1])
 
     return Model(inputs, [out_tensor1, out_tensor2])
