@@ -18,8 +18,8 @@ from .metrics import wrap_obj_acc, wrap_mean_iou
 from .metrics import wrap_class_acc, wrap_recall
 
 
-class MetricType(object):
-    """names of metric type"""
+class MetricKind(object):
+    """names of metric kind"""
     obj_acc = "obj_acc"
     mean_iou = "mean_iou"
     class_acc = "class_acc"
@@ -294,11 +294,11 @@ class Yolo(object):
             loss_weight=loss_weight
             )
 
-    def metrics(self, type="obj_acc"):
+    def metrics(self, kind="obj_acc"):
         """Metrics of yolo.
 
         Args:
-            type: A string,
+            kind: A string,
                 one of "obj_acc", "mean_iou", "class_acc" or "recall",
                 use "obj_acc+mean_iou", "mean_iou+recall0.6"
                 to specify multiple metrics.
@@ -308,25 +308,25 @@ class Yolo(object):
              A list of metric function conforming to tf.keras specification.
         """
         metrics_list = []
-        if "obj" in type:
+        if "obj" in kind:
             metrics_list.append(
                 wrap_obj_acc(
                     self.grid_shape,
                     self.bbox_num,
                     self.class_num))
-        if "iou" in type:
+        if "iou" in kind:
             metrics_list.append(
                 wrap_mean_iou(
                     self.grid_shape,
                     self.bbox_num,
                     self.class_num))
-        if "class" in type:
+        if "class" in kind:
             metrics_list.append(
                 wrap_class_acc(
                     self.grid_shape,
                     self.class_num))
-        if "recall" in type:
-            iou_threshold = type[type.find("recall") + 6:]
+        if "recall" in kind:
+            iou_threshold = kind[kind.find("recall") + 6:]
             end = iou_threshold.rfind("+")
             if end < 0:
                 end = None

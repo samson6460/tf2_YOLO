@@ -51,7 +51,7 @@ def yolo_body(input_shape=(416, 416, 3),
         outputs = Conv2D_BN_Leaky(merge, 1024, 3)
     elif backbone == "unet":
         if pretrained_backbone is None:
-            outputs = unet_body(inputs) 
+            outputs = unet_body(inputs)
         else:
             outputs = pretrained_backbone(inputs)
     elif backbone == "mobilenet":

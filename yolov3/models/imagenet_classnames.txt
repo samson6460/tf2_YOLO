@@ -779,7 +779,7 @@ n03127747,crash helmet
 n02877765,bottlecap
 n04435653,tile roof
 n03724870,mask
-n03710721,maillot
+n03710721,maillot tank suit
 n03920288,Petri dish
 n03379051,football helmet
 n02807133,bathing cap

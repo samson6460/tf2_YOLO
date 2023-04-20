@@ -32,7 +32,7 @@ def cal_iou(xywh_true, xywh_pred, grid_shape):
     pred_areas = wh_pred[..., 0] * wh_pred[..., 1]
 
     union_areas = pred_areas + true_areas - intersect_areas
-    iou_scores  = (intersect_areas + EPSILON)/(union_areas + EPSILON)
+    iou_scores  = intersect_areas/(union_areas + EPSILON)
 
     return iou_scores
 
