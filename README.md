@@ -8,13 +8,15 @@ The truth may be that the model only look once, but you implemented it and tried
 
 Before you go crazy, you must try this repo.
 
-**tf2_YOLO** is my implementation of YOLOv1 to YOLOv3 using Tensorflow 2.X after delving into 3 papers of YOLO:
+**tf2_YOLO** is my implementation of YOLOv1 to YOLOv3 using Tensorflow 2.X(tf.keras) after delving into 4 papers of YOLO:
 
 **YOLOv1**: You Only Look Once: Unified, Real-Time Object Detection by Joseph Redmon, Santosh Divvala, Ross Girshick, Ali Farhadi (https://arxiv.org/abs/1506.02640).
 
 **YOLOv2(YOLO9000)**: Better, Faster, Stronger by Joseph Redmon, Ali Farhadi (https://arxiv.org/abs/1612.08242).
 
-**YOLOv3**: An Incremental Improvement by Joseph Redmon, Ali Farhadi (https://arxiv.org/abs/1804.02767).
+**YOLOv3**: An Incremental Improvement by Joseph Redmon, Ali Farhadi (https://arxiv.org/abs/2004.10934).
+
+**YOLOv4**: Optimal Speed and Accuracy of Object Detection, Alexey Bochkovskiy, Chien-Yao Wang, Hong-Yuan Mark Liao (https://arxiv.org/abs/1804.02767).
 
 This repo refers to lots of resources, including the source code of darknet:
 
@@ -27,7 +29,7 @@ Most importantly, the repo is written in Python and Tensorflow, so you can easil
 
 # Table of Contents
 
-- [tf2_YOLO](#tf2_yolo)
+- [tf2\_YOLO](#tf2_yolo)
 - [Table of Contents](#table-of-contents)
 - [Installation](#installation)
 - [Sample applications](#sample-applications)
@@ -37,7 +39,7 @@ Most importantly, the repo is written in Python and Tensorflow, so you can easil
   - [1. Create YOLO class](#1-create-yolo-class)
   - [2. Read file](#2-read-file)
   - [3. Visualize one of images with its annotation](#3-visualize-one-of-images-with-its-annotation)
-  - [4. Get anchor boxes for yolov2 and yolov3](#4-get-anchor-boxes-for-yolov2-and-yolov3)
+  - [4. Get anchor boxes for yolov2 ~ yolov4](#4-get-anchor-boxes-for-yolov2--yolov4)
   - [5. Create model](#5-create-model)
   - [6. Compile model](#6-compile-model)
   - [7. Train model](#7-train-model)
@@ -95,6 +97,12 @@ from tf2_YOLO import yolov3
 yolo = yolov3.Yolo(input_shape, class_names)
 ```
 
+***YOLOv4***
+```
+from tf2_YOLO import yolov4
+yolo = yolov4.Yolo(input_shape, class_names)
+```
+
 - **input_shape**: A tuple of 3 integers, shape of input image.
 - **class_names**: A list, containing all label names.
 
@@ -129,7 +137,7 @@ A tuple of 2 ndarrays, (img, label),
 - shape of img: (batch_size, img_heights, img_widths, channels)
 - shape of label: (batch_size, grid_heights, grid_widths, info)
 
-***Returns from YOLOv3***
+***Returns from YOLOv3、YOLOv4***
 
 A tuple: (img: ndarray, label_list: list), label_list contains the label of all FPN layers.
 - shape of img: (batch_size, img_heights, img_widths, channels)
@@ -145,14 +153,14 @@ A tuple: (img: ndarray, label_list: list), label_list contains the label of all 
 yolo.vis_img(img[0], label[0])
 ```
 
-***YOLOv3***
+***YOLOv3、YOLOv4***
 ```
 yolo.vis_img(img[0], label[2][0])
 ```
 
 ---
 
-## 4. Get anchor boxes for yolov2 and yolov3
+## 4. Get anchor boxes for yolov2 ~ yolov4
 
 ***YOLOv2***
 ```
@@ -168,7 +176,7 @@ anchors = kmeans(
 anchors = np.sort(anchors, axis=0)[::-1]
 ```
 
-***YOLOv3***
+***YOLOv3、YOLOv4***
 ```
 from utils.kmeans import kmeans, iou_dist
 import numpy as np
@@ -193,7 +201,7 @@ model = yolo.create_model(bbox_num)
 
 - **bbox_num**: An integer, the number of bounding boxes.
 
-***YOLOv2、YOLOv3***
+***YOLOv2、YOLOv3、YOLOv4***
 ```
 model = yolo.create_model(anchors)
 ```
@@ -223,7 +231,7 @@ yolo.model.compile(optimizer=Adam(lr=1e-4),
                    metrics=metrics)
 ```
 
-***YOLOv3***
+***YOLOv3、YOLOv4***
 ```
 from utils.tools import get_class_weight
 from tensorflow.keras.optimizers import Adam
@@ -275,6 +283,7 @@ from utils.measurement import create_score_mat
 
 prediction = yolo.model.predict(data)
 
+# visualize one image with its annotation
 yolo.vis_img(
     data[0], prediction[0],
     nms_mode=2)
@@ -289,12 +298,13 @@ create_score_mat(
 print(create_score_mat)
 ```
 
-***YOLOv3***
+***YOLOv3、YOLOv4***
 ```
 from utils.measurement import create_score_mat
 
 prediction = yolo.model.predict(data)
 
+# visualize one image with its annotation
 yolo.vis_img(
     data[0],
     prediction[2][0],
@@ -338,7 +348,7 @@ pr.plot_pr_curve(smooth=False)
 pr.get_map(mode="voc2012")
 ```
 
-***YOLOv3***
+***YOLOv3、YOLOv4***
 ```
 from utils.measurement import PR_func
 

@@ -347,7 +347,7 @@ def decode(*label_datas,
         threshold: A float,
             threshold for quantizing output.
         version: An integer,
-            specifying the decode method, yolov1、v2 or v3.
+            specifying the decode method, yolov1, 2, 3 or 4.
 
     Return:
         Numpy.ndarray with shape: (N, 7).
@@ -363,7 +363,7 @@ def decode(*label_datas,
                                (*grid_shape, bbox_num, 5))
             prob = np.expand_dims(
                 label_data[..., -class_num:], axis=-2)
-        elif version == 2 or version == 3:
+        elif version in (2, 3, 4):
             bbox_num = label_data.shape[-1]//(5 + class_num)
             label_data = np.reshape(label_data,
                                     (*grid_shape,
@@ -446,7 +446,7 @@ def vis_img(img,
         nms_sigma: A float,
             sigma for Soft-NMS.
         version: An integer,
-            specifying the decode method, yolov1、v2 or v3.
+            specifying the decode method, yolov1, 2, 3 or 4.
         figsize: (float, float), optional, default: None
             width, height in inches. If not provided, defaults to [6.4, 4.8].
         dpi: float, default: rcParams["figure.dpi"] (default: 100.0)
@@ -768,7 +768,7 @@ def array_to_json(path,
         nms_sigma: A float,
             sigma for Soft-NMS.
         version: An integer,
-            specifying the decode method, yolov1、v2 or v3.     
+            specifying the decode method, yolov1, 2, 3 or 4.     
     """
     class_num = len(class_names)
 
@@ -844,7 +844,7 @@ def array_to_xml(path,
         nms_sigma: A float,
             sigma for Soft-NMS.
         version: An integer,
-            specifying the decode method, yolov1、v2 or v3.     
+            specifying the decode method, yolov1, 2, 3 or 4.     
     """
     class_num = len(class_names)
 
