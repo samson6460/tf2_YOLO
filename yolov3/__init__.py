@@ -336,6 +336,7 @@ class Yolo(object):
                 0: Not use NMS.
                 1: Use NMS.
                 2: Use Soft-NMS.
+                3: Use DIoU-NMS.
             nms_threshold: A float,
                 threshold for eliminating duplicate boxes.
             nms_sigma: A float,

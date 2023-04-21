@@ -12,8 +12,8 @@ from os import path
 import sys
 sys.path.append(path.join(path.dirname(__file__), '..'))
 
+import numpy as np
 from tensorflow.keras.utils import Sequence
-
 from tensorflow.keras.applications import ResNet50
 from tensorflow.keras.applications import ResNet101
 from tensorflow.keras.applications import ResNet152
@@ -72,7 +72,7 @@ class Yolo(object):
     Attributes:
         input_shape
         class_names
-        grid_shape: A tuple or list of integers(heights, widths), 
+        grid_shape: A tuple or list of integers(height, width), 
             input images will be divided into 
             grid_shape[0] x grid_shape[1] grids.
         abox_num: An integer, the number of anchor boxes.
@@ -93,20 +93,86 @@ class Yolo(object):
         self.class_names = class_names
         self.class_num = len(class_names)
         self.pan_layers = 3
-        self.anchors = None
-        self.model = None
-        self.file_names = None
+        self._model = None
+        self._file_names = None
+
+    @property
+    def model(self):
+        """Yolo.model"""
+        if self._model is None:
+            raise ValueError(
+               "You haven't created a model by using create_model().")
+        return self._model
+
+    @model.setter
+    def model(self, _):
+        raise ValueError(
+            "Can't set attribute directly, "
+            "please create a model by using create_model().")
+
+    @model.deleter
+    def model(self):
+        del self._model
+        self._model = None
+
+    @property
+    def anchors(self):
+        """Yolo.anchors"""
+        if self._model is None:
+            raise ValueError(
+               "To get anchors, you have to create a model first.")
+
+        _anchors = []
+        for i_out in range(self.pan_layers):
+            for i_box in range(self.abox_num):
+                l_name = f"out{i_out + 1}_box{i_box + 1}_anchor"
+                _anchors.append(self.model.get_layer(
+                    name=l_name).get_weights()[0])
+        _anchors = np.squeeze(np.vstack(_anchors)).tolist()
+        return _anchors
+
+    @anchors.setter
+    def anchors(self, anchor_boxes):
+        for i_out in range(self.pan_layers):
+            start_i = i_out*self.abox_num
+            for i_box, box in enumerate(
+                    anchor_boxes[start_i:start_i + self.abox_num]):
+                self.model.get_layer(
+                    name=f"out{i_out + 1}_box{i_box + 1}_anchor").set_weights(
+                    [np.expand_dims(box, axis=((0, 1, 2)))]
+                )
+
+    @property
+    def file_names(self):
+        """Yolo.file_names"""
+        if self._file_names is None:
+            raise ValueError(
+               "You haven't read files.")
+        return self._file_names
+
+    def reshape_anchors(self, ori_shape, shape=None):
+        """Reshape the model anchors.
+
+        Args:
+            ori_shape: The original shape(width, height).
+            shape: The shape to convert(width, height).
+                If the argument is ignored,
+                input shape of model will be used.
+        """
+        if shape is None:
+            shape = self.input_shape[1::-1]
+        grid_amp = ori_shape[0]/shape[0], ori_shape[1]/shape[1]
+
+        for i_out in range(self.pan_layers):
+            for i_box in range(self.abox_num):
+                layer = self.model.get_layer(
+                    name=f"out{i_out + 1}_box{i_box + 1}_anchor")
+                layer.set_weights(
+                    [layer.get_weights()[0]*grid_amp]
+                )
 
     def create_model(self,
-                     anchors=[[0.75493421, 0.65953947],
-                              [0.31578947, 0.39967105],
-                              [0.23355263, 0.18092105],
-                              [0.11842105, 0.24013158],
-                              [0.12500000, 0.09046053],
-                              [0.05921053, 0.12335526],
-                              [0.06578947, 0.04605263],
-                              [0.03125000, 0.05921053],
-                              [0.01973684, 0.02631579]],
+                     anchors=None,
                      backbone="csp_darknet",
                      pretrained_weights=None,
                      pretrained_body="ms_coco"):
@@ -116,6 +182,7 @@ class Yolo(object):
             anchors: 2D array like, 
                 prior anchor boxes(width, height),
                 all the values should be normalize to 0-1.
+                If using pretrained weights, this argument can be ignored.
             backbone: A string,
                 one of "csp_darknet", 
                 "resnet50", "resnet101", "resnet152",
@@ -129,8 +196,17 @@ class Yolo(object):
         Returns:
             A tf.keras Model.
         """
-        if pretrained_weights is not None:
+        use_arg_anchors = True
+        if pretrained_weights is None:
+            if anchors is None:
+                raise ValueError(
+                    "Without pretrained weights, `anchors` can't be empty.")
+        else:
             pretrained_body = None
+            if anchors is None:
+                anchors = [[1, 1] for _ in range(
+                    self.pan_layers*self.abox_num)]
+                use_arg_anchors = False
 
         if isinstance(pretrained_body, str):
             str_body_weights = pretrained_body
@@ -170,16 +246,18 @@ class Yolo(object):
 
         if pretrained_body is not None:
             model_body.set_weights(pretrained_body.get_weights())
-        self.model = yolo_head(model_body,
-                               self.class_num,
-                               anchors)
+
+        self._model = yolo_head(
+            model_body, self.class_num, anchors)
 
         if pretrained_weights is not None:
-            self.model.load_weights(pretrained_weights)
-        self.anchors = anchors
-        self.grid_shape = self.model.output[0].shape[1:3]
-        self.pan_layers = len(self.model.output)
-        self.abox_num = len(self.anchors)//self.pan_layers
+            self._model.load_weights(pretrained_weights)
+            if use_arg_anchors:
+                self.anchors = anchors
+                print("The saved model is loaded and will use the "
+                      "argument `anchors` instead of the original anchors.")
+
+        self.grid_shape = self._model.output[0].shape[1:3]
 
     def read_file_to_dataset(
         self, img_path=None, label_path=None,
@@ -320,7 +398,7 @@ class Yolo(object):
                 conf_threshold=0.5,
                 show_conf=True,
                 nms_mode=0,
-                nms_threshold=0.5,
+                nms_threshold=0.45,
                 nms_sigma=0.5,
                 **kwargs):
         """Visualize the images and annotaions by pyplot.
@@ -337,6 +415,7 @@ class Yolo(object):
                 0: Not use NMS.
                 1: Use NMS.
                 2: Use Soft-NMS.
+                3: Use DIoU-NMS.
             nms_threshold: A float,
                 threshold for eliminating duplicate boxes.
             nms_sigma: A float,

@@ -2,13 +2,16 @@
 
 ![example](https://img.shields.io/badge/Python-3.x-blue.svg) ![example](https://img.shields.io/badge/Tensorflow-2.x-yellow.svg) ![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)
 
-YOLO, you only look once, wait...are you sure about that??
+Use 6 steps to train your own YOLO model in your codes!
 
-The truth may be that the model only look once, but you implemented it and tried it thousands of times.
+1⃣ Create YOLO object(v1~v4).
+2⃣ Read files(labelme style, labelimg style).
+3⃣ Get anchor boxes.
+4⃣ Create model(with DarkNet, ResNet backbone...).
+5⃣ Compile model.
+6⃣ Train the model!
 
-Before you go crazy, you must try this repo.
-
-**tf2_YOLO** is my implementation of YOLOv1 to YOLOv3 using Tensorflow 2.X(tf.keras) after delving into 4 papers of YOLO:
+**tf2_YOLO** is my implementation of YOLOv1 to YOLOv4 using Tensorflow 2.X(tf.keras) after delving into 4 papers of YOLO:
 
 **YOLOv1**: You Only Look Once: Unified, Real-Time Object Detection by Joseph Redmon, Santosh Divvala, Ross Girshick, Ali Farhadi (https://arxiv.org/abs/1506.02640).
 
@@ -327,6 +330,7 @@ print(create_score_mat)
   - 0: Not use NMS.
   - 1: Use NMS.
   - 2: Use Soft-NMS.
+  - 3: Use DIoU-NMS.
 - **version**: An integer, specifying the decode method, yolov1、v2 or v3.
 
 ## 9. Get PR curve and mAP

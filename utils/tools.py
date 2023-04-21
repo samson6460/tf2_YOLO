@@ -409,7 +409,7 @@ def vis_img(img,
             conf_threshold=0.5,
             show_conf=True,
             nms_mode=0,
-            nms_threshold=0.5,
+            nms_threshold=0.45,
             nms_sigma=0.5,
             version=1,
             figsize=None,
@@ -441,6 +441,7 @@ def vis_img(img,
             0: Not use NMS.
             1: Use NMS.
             2: Use Soft-NMS.
+            3: Use DIoU-NMS.
         nms_threshold: A float,
             threshold for eliminating duplicate boxes.
         nms_sigma: A float,
@@ -498,6 +499,8 @@ def vis_img(img,
             xywhcp = soft_nms(
                 xywhcp, class_num, nms_threshold,
                 conf_threshold, nms_sigma)
+        elif nms_mode == 3:
+            xywhcp = nms(xywhcp, class_num, nms_threshold, 2)
 
     if fig_ax is not None:
         fig, axes = fig_ax
@@ -589,15 +592,18 @@ def get_class_weight(label_data, method="alpha"):
     return class_weight
 
 
-def cal_iou(xywh_true, xywh_pred):
+def cal_iou(xywh_true, xywh_pred, mode=1):
     """Calculate IOU of two tensors.
 
     Args:
         xywh_true: A tensor or array-like of shape (..., 4).
             (x, y) should be normalized by image size.
         xywh_pred: A tensor or array-like of shape (..., 4).
+        mode: An integer, 
+            1: Normal IoU.
+            2: DIoU.
     Returns:
-        An iou_scores array.
+        IoU scores array[, R_DIoU scores array].
     """
     xy_true = xywh_true[..., 0:2] # N*S*S*1*2
     wh_true = xywh_true[..., 2:4]
@@ -622,22 +628,41 @@ def cal_iou(xywh_true, xywh_pred):
     pred_areas = wh_pred[..., 0] * wh_pred[..., 1]
 
     union_areas = pred_areas + true_areas - intersect_areas
-    iou_scores  = intersect_areas/(union_areas + EPSILON)
+    iou_scores  = intersect_areas/(union_areas + EPSILON) # N*S*S*B
 
-    return iou_scores
+    if mode == 1:
+        return iou_scores
+
+    elif mode == 2:
+        enclose_mins = np.minimum(mins_pred,  mins_true)
+        enclose_maxes = np.maximum(maxes_pred, maxes_true)
+
+        enclose_wh = enclose_maxes - enclose_mins
+        enclose_c2 = (np.power(enclose_wh[..., 0], 2)
+                      + np.power(enclose_wh[..., 1], 2))
+
+        p_rho2 = (np.power(xy_true[..., 0] - xy_pred[..., 0], 2)
+                  + np.power(xy_true[..., 1] - xy_pred[..., 1], 2))
+
+        diou_scores = iou_scores - p_rho2/enclose_c2
+
+        return diou_scores
 
 
-def nms(xywhcp, class_num=1, nms_threshold=0.5):
+def nms(xywhcp, class_num=1, nms_threshold=0.45, iou_mode=1):
     """Non-Maximum Suppression.
 
     Args:
         xywhcp: output from `decode()`.
         class_num:  An integer,
             number of classes.
-        nms_threshold: A float, default is 0.5.
+        nms_threshold: A float, default is 0.45.
+        iou_mode: An integer, 
+            1: Normal IoU.
+            2: DIoU.
 
     Returns:
-        xywhcp through nms.
+        xywhcp through NMS.
     """
     argmax_prob = xywhcp[..., 5].astype("int")
 
@@ -652,7 +677,7 @@ def nms(xywhcp, class_num=1, nms_threshold=0.5):
         xywhc_axis1 = np.reshape(
             xywhc_class, (1, -1, 5))
 
-        iou_scores = cal_iou(xywhc_axis0, xywhc_axis1)
+        iou_scores = cal_iou(xywhc_axis0, xywhc_axis1, mode=iou_mode)
         conf = xywhc_class[..., 4]*prob_class
         sort_index = np.argsort(conf)[::-1]
 
@@ -674,21 +699,21 @@ def nms(xywhcp, class_num=1, nms_threshold=0.5):
 
 
 def soft_nms(xywhcp, class_num=1,
-        nms_threshold=0.5, conf_threshold=0.5, sigma=0.5):
+        nms_threshold=0.45, conf_threshold=0.5, sigma=0.5):
     """Soft Non-Maximum Suppression.
 
     Args:
         xywhcp: output from `decode()`.
         class_num:  An integer,
             number of classes.
-        nms_threshold: A float, default is 0.5.
+        nms_threshold: A float, default is 0.45.
         conf_threshold: A float,
             threshold for quantizing output.
         sigma: A float,
             sigma for Soft NMS.
 
     Returns:
-        xywhcp through nms.
+        xywhcp through soft-NMS.
     """
     argmax_prob = xywhcp[..., 5].astype("int")
 
@@ -743,7 +768,7 @@ def array_to_json(path,
                   class_names=[""],
                   conf_threshold=0.5,
                   nms_mode=0,
-                  nms_threshold=0.5,
+                  nms_threshold=0.45,
                   nms_sigma=0.5,
                   version=3):
     """Convert Yolo output array to json file.
@@ -763,6 +788,7 @@ def array_to_json(path,
             0: Not use NMS.
             1: Use NMS.
             2: Use Soft-NMS.
+            3: Use DIoU-NMS.
         nms_threshold: A float,
             threshold for eliminating duplicate boxes.
         nms_sigma: A float,
@@ -783,6 +809,8 @@ def array_to_json(path,
             xywhcp = soft_nms(
                 xywhcp, class_num, nms_threshold,
                 conf_threshold, nms_sigma)
+        elif nms_mode == 3:
+            xywhcp = nms(xywhcp, class_num, nms_threshold, 2)
 
     obj_list = []
     for obj in xywhcp:
@@ -819,7 +847,7 @@ def array_to_xml(path,
                  class_names=[],
                  conf_threshold=0.5,
                  nms_mode=0,
-                 nms_threshold=0.5,
+                 nms_threshold=0.45,
                  nms_sigma=0.5,
                  version=3):
     """Convert Yolo output array to xml file.
@@ -839,6 +867,7 @@ def array_to_xml(path,
             0: Not use NMS.
             1: Use NMS.
             2: Use Soft-NMS.
+            3: Use DIoU-NMS.
         nms_threshold: A float,
             threshold for eliminating duplicate boxes.
         nms_sigma: A float,
@@ -859,6 +888,8 @@ def array_to_xml(path,
             xywhcp = soft_nms(
                 xywhcp, class_num, nms_threshold,
                 conf_threshold, nms_sigma)
+        elif nms_mode == 3:
+            xywhcp = nms(xywhcp, class_num, nms_threshold, 2)
 
     root = ET.Element("annotation")
     for obj in xywhcp:
