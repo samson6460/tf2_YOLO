@@ -314,7 +314,7 @@ class Yolo(object):
             seed=seed,
             encoding=encoding,
             thread_num=thread_num)
-        self.file_names = seq.path_list
+        self._file_names = seq.path_list
         seq.batch_size = len(seq.path_list)
 
         img_data, label_data = seq[0]
@@ -388,7 +388,7 @@ class Yolo(object):
             seed=seed,
             encoding=encoding,
             thread_num=thread_num)
-        self.file_names = seq.path_list
+        self._file_names = seq.path_list
 
         v4seq = _Yolov4DataSequence(seq, self.pan_layers)
 

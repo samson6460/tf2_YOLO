@@ -41,6 +41,7 @@ def create_score_mat(y_trues, *y_preds,
             0: Not use NMS.
             1: Use NMS.
             2: Use Soft-NMS.
+            3: Use DIoU-NMS.
         nms_threshold: A float,
             threshold for eliminating duplicate boxes.
         nms_sigma: A float,
@@ -86,6 +87,8 @@ def create_score_mat(y_trues, *y_preds,
                 xywhcp_pred = soft_nms(
                     xywhcp_pred, class_num, nms_threshold,
                     conf_threshold, nms_sigma)
+            elif nms_mode == 3:
+                xywhcp_pred = nms(xywhcp_pred, class_num, nms_threshold, 2)
 
         xywhc_true = xywhcp_true[..., :5]
         xywhc_pred = xywhcp_pred[..., :5]
@@ -166,6 +169,7 @@ class PRfunc(object):
             0: Not use NMS.
             1: Use NMS.
             2: Use Soft-NMS.
+            3: Use DIoU-NMS.
         nms_threshold: A float,
             threshold for eliminating duplicate boxes.
         nms_sigma: A float,
@@ -227,6 +231,9 @@ class PRfunc(object):
                     xywhcp_pred = soft_nms(
                         xywhcp_pred, class_num, nms_threshold,
                         conf_threshold, nms_sigma)
+                elif nms_mode == 3:
+                    xywhcp_pred = nms(
+                        xywhcp_pred, class_num, nms_threshold, 2)
 
             xywhc_true = xywhcp_true[..., :5]
             xywhc_pred = xywhcp_pred[..., :5]
