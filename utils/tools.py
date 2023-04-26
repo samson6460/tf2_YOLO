@@ -189,8 +189,9 @@ class YoloDataSequence(Sequence):
             if self.show_progress:
                 self._pg_i += 1
                 percent = self._pg_i/total_len*100
-                if percent%1 == 0:
-                    print(f"\r{percent:3.0f}% read", end="")
+                if percent > self._pg_percent:
+                    self._pg_percent = ceil(percent)
+                    print(f"\r{self._pg_percent:3d}% read", end="")
 
         def _imgaug_to_array(img, bbs,
                 grid_shape, pos, labels):
@@ -285,6 +286,7 @@ class YoloDataSequence(Sequence):
                                5 + self.class_num))
         if self.show_progress:
             self._pg_i = 0
+            self._pg_percent = 0
         start_idx = idx*self.batch_size
         end_idx = (idx + 1)*self.batch_size
         path_list = self.path_list[start_idx:end_idx]
