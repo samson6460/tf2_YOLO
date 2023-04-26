@@ -86,13 +86,15 @@ class YoloDataSequence(Sequence):
         class_names: A list of string,
             containing all label names.
         augmenter: A `imgaug.augmenters.meta.Sequential` instance.
-        shuffle: Boolean, default: True.
+        shuffle: A boolean, default: True.
         seed: An integer, random seed, default: None.
         encoding: A string,
             encoding format of file,
             default: "big5".
         thread_num: An integer,
             specifying the number of threads to read files.
+        show_progress: A boolean,
+            whether to show reading progress of each batch.
 
     Returns:
         A tf.Sequence.
@@ -110,7 +112,8 @@ class YoloDataSequence(Sequence):
                  shuffle=True,
                  seed=None,
                  encoding="big5",
-                 thread_num=1):
+                 thread_num=1,
+                 show_progress=False):
         self.img_path = img_path
         self.label_path = label_path
         self.batch_size = batch_size
@@ -126,6 +129,7 @@ class YoloDataSequence(Sequence):
         self.seed = seed
         self.encoding = encoding
         self.thread_num = thread_num
+        self.show_progress = show_progress
 
         if (label_format == "labelme"
             and (img_path is None or label_path is None)):
@@ -181,6 +185,12 @@ class YoloDataSequence(Sequence):
                         box_h/img_height)
                     label_data[pos, y_i, x_i, 4] = 1
                     label_data[pos, y_i, x_i, 5 + labels[label_i]] = 1
+
+            if self.show_progress:
+                self._pg_i += 1
+                percent = self._pg_i/total_len*100
+                if percent%1 == 0:
+                    print(f"\r{percent:3.0f}% read", end="")
 
         def _imgaug_to_array(img, bbs,
                 grid_shape, pos, labels):
@@ -273,6 +283,8 @@ class YoloDataSequence(Sequence):
         label_data = np.zeros((batch_size,
                                *self.grid_shape,
                                5 + self.class_num))
+        if self.show_progress:
+            self._pg_i = 0
         start_idx = idx*self.batch_size
         end_idx = (idx + 1)*self.batch_size
         path_list = self.path_list[start_idx:end_idx]

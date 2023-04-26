@@ -152,7 +152,8 @@ class Yolo(object):
             shuffle=shuffle,
             seed=seed,
             encoding=encoding,
-            thread_num=thread_num)
+            thread_num=thread_num,
+            show_progress=True)
         self.file_names = seq.path_list
         seq.batch_size = len(seq.path_list)
 

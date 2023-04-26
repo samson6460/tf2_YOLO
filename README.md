@@ -5,10 +5,15 @@
 Use 6 steps to train your own YOLO model in your codes!
 
 1⃣ Create YOLO object(v1~v4).
+
 2⃣ Read files(labelme style, labelimg style).
+
 3⃣ Get anchor boxes.
+
 4⃣ Create model(with DarkNet, ResNet backbone...).
+
 5⃣ Compile model.
+
 6⃣ Train the model!
 
 **tf2_YOLO** is my implementation of YOLOv1 to YOLOv4 using Tensorflow 2.X(tf.keras) after delving into 4 papers of YOLO:
@@ -79,6 +84,10 @@ Most importantly, the repo is written in Python and Tensorflow, so you can easil
 *dataset from: https://github.com/Shenggan/BCCD_Dataset.git*
 
 # Usage
+
+Each version of YOLO is independent, you can copy the parts you want to your own project directory.
+
+And follow the documentation bellow to train and evaluate your YOLO model.
 
 ## 1. Create YOLO class
 
@@ -331,7 +340,7 @@ print(create_score_mat)
   - 1: Use NMS.
   - 2: Use Soft-NMS.
   - 3: Use DIoU-NMS.
-- **version**: An integer, specifying the decode method, yolov1、v2 or v3.
+- **version**: An integer, specifying the decode method, yolov1, 2, 3 or 4.
 
 ## 9. Get PR curve and mAP
 
@@ -372,7 +381,7 @@ pr.get_map(mode="voc2012")
 ```
 
 - **max_per_img**: An integer, limit the number of objects that an image can detect at most.
-- **version**: An integer, specifying the decode method, yolov1、v2 or v3.
+- **version**: An integer, specifying the decode method, yolov1, 2, 3 or 4.
 - **smooth**: A boolean, if True, use interpolated precision.
 - **mode**: A string, one of "voc2007", "voc2012"(default), "area", "smootharea".
   - "voc2007": calculate the average precision of recalls at [0, 0.1, ..., 1](11 points).
