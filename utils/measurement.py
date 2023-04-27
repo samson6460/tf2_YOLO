@@ -337,7 +337,7 @@ class PRfunc(object):
             precision = precisions[-pc_idx:].max()
         return precision
 
-    def plot_pr_curve(self, class_idx=0,
+    def plot_pr_curve(self, class_idx=-1,
                       smooth=False,
                       figsize=None,
                       return_fig=False):
@@ -345,6 +345,7 @@ class PRfunc(object):
 
         Args:
             class_idx: An integer, index of class.
+                If the index is -1, show all the PR curves of classes.
             smooth: A boolean,
                 if True, use interpolated precision.
             figsize: (float, float), optional, default: None
@@ -354,19 +355,30 @@ class PRfunc(object):
         """
         if class_idx >= self.class_num:
             raise IndexError("Class index out of range")
-        precisions = self.precisions[class_idx].copy()
-        recalls = self.recalls[class_idx]
 
-        if smooth:
-            max_pc = 0
-            for i in range(len(precisions)-1, -1, -1):
-                if precisions[i] > max_pc:
-                    max_pc = precisions[i]
-                else:
-                    precisions[i] = max_pc
+        if class_idx >= 0:
+            precisions = self.precisions[class_idx:class_idx + 1]
+            recalls = self.recalls[class_idx:class_idx + 1]
+            class_names = self.class_names[class_idx:class_idx + 1]
+        else:
+            precisions = self.precisions
+            recalls = self.recalls
+            class_names = self.class_names
 
         fig = plt.figure(figsize=figsize)
-        plt.plot(recalls, precisions)
+
+        for precision, recall in zip(precisions, recalls):
+            if smooth:
+                precision = precision.copy()
+                max_pc = 0
+                for i in range(len(precision)-1, -1, -1):
+                    if precision[i] > max_pc:
+                        max_pc = precision[i]
+                    else:
+                        precision[i] = max_pc
+            plt.plot(recall, precision)
+
+        plt.legend(class_names)
         plt.title("PR curve")
         plt.xlabel("recall")
         plt.ylabel("precision")

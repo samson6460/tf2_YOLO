@@ -95,6 +95,7 @@ class Yolo(object):
         self.pan_layers = 3
         self._model = None
         self._file_names = None
+        self._anchors_trainable = False
 
     @property
     def model(self):
@@ -141,6 +142,21 @@ class Yolo(object):
                     name=f"out{i_out + 1}_box{i_box + 1}_anchor").set_weights(
                     [np.expand_dims(box, axis=((0, 1, 2)))]
                 )
+
+    @property
+    def anchors_trainable(self):
+        """Yolo.anchors_trainable"""
+        return self._anchors_trainable
+
+    @anchors_trainable.setter
+    def anchors_trainable(self, trainable):
+        for i_out in range(self.pan_layers):
+            for i_box in range(self.abox_num):
+                layer = self.model.get_layer(
+                    name=f"out{i_out + 1}_box{i_box + 1}_anchor")
+                layer.trainable = trainable
+
+        self._anchors_trainable = trainable
 
     @property
     def file_names(self):
