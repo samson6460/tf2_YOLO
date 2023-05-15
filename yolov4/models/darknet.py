@@ -11,7 +11,8 @@ from .backbone import conv2d_bn_leaky, csp_darknet_body
 from .backbone import make_last_layers, spp_module
 
 
-WEIGHTS_PATH_CSPDN_BODY = "https://github.com/samson6460/tf2_YOLO/releases/download/YOLOv4/tf_keras_yolov4_body.h5"
+WEIGHTS_PATH_YOLOV4_BODY = "https://github.com/samson6460/tf2_YOLO/releases/download/YOLOv4/tf_keras_yolov4_608_body.h5"
+WEIGHTS_PATH_YOLOV4_MODEL = "https://github.com/samson6460/tf2_YOLO/releases/download/YOLOv4/tf_keras_yolov4_608_model.h5"
 WEIGHTS_PATH_CSPDN53_TOP = "https://github.com/samson6460/tf2_YOLO/releases/download/YOLOv4/tf_keras_darknet53_448_include_top.h5"
 WEIGHTS_PATH_CSPDN53_NOTOP = "https://github.com/samson6460/tf2_YOLO/releases/download/YOLOv4/tf_keras_darknet53_448_no_top.h5"
 
@@ -138,7 +139,7 @@ def yolo_body(input_shape=(608, 608, 3),
         if pretrained_weights == "ms_coco":
             pretrained_weights = get_file(
                 "tf_keras_yolov4_body.h5",
-                WEIGHTS_PATH_CSPDN_BODY,
+                WEIGHTS_PATH_YOLOV4_BODY,
                 cache_subdir="models")
         model.load_weights(pretrained_weights)
 
