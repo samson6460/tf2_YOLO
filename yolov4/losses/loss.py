@@ -120,35 +120,25 @@ def wrap_yolo_loss(grid_shape,
         c_pred = tf.clip_by_value(c_pred, EPSILON, 1 - EPSILON)
 
         if label_smooth > 0:
-            label = 1 - label_smooth
-
-            has_obj_c_loss = -tf.reduce_sum(
-                tf.reduce_mean(
-                has_obj_mask # N*S*S*B
-                *(tf.math.abs(label - c_pred)**focal_loss_gamma)
-                *tf.math.log(1 - tf.math.abs(label - c_pred)),
-                axis=0))
-
-            no_obj_c_loss = -tf.reduce_sum(
-                tf.reduce_mean(
-                no_obj_mask # N*S*S*B
-                *(tf.math.abs(label_smooth - c_pred)**focal_loss_gamma)
-                *tf.math.log(1 - tf.math.abs(label_smooth - c_pred)),
-                axis=0))
+            obj_error = tf.math.abs(1 - label_smooth - c_pred)
+            no_obj_error = tf.math.abs(label_smooth - c_pred)
         else:
-            has_obj_c_loss = -tf.reduce_sum(
-                tf.reduce_mean(
-                has_obj_mask # N*S*S*B
-                *((1 - c_pred)**focal_loss_gamma)
-                *tf.math.log(c_pred),
-                axis=0))
+            obj_error = 1 - c_pred
+            no_obj_error = c_pred
 
-            no_obj_c_loss = -tf.reduce_sum(
-                tf.reduce_mean(
-                no_obj_mask # N*S*S*B
-                *((c_pred)**focal_loss_gamma)
-                *tf.math.log(1 - c_pred),
-                axis=0))
+        has_obj_c_loss = -tf.reduce_sum(
+            tf.reduce_mean(
+            has_obj_mask # N*S*S*B
+            *(obj_error**focal_loss_gamma)
+            *tf.math.log(1 - obj_error),
+            axis=0))
+
+        no_obj_c_loss = -tf.reduce_sum(
+            tf.reduce_mean(
+            no_obj_mask # N*S*S*B
+            *(no_obj_error**focal_loss_gamma)
+            *tf.math.log(1 - no_obj_error),
+            axis=0))
 
         c_loss = has_obj_c_loss + binary_weight*no_obj_c_loss
 

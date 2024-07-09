@@ -14,6 +14,7 @@ import xml.etree.ElementTree as ET
 
 import numpy as np
 from PIL import Image
+import cv2 as cv
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 from matplotlib.patches import Circle, BoxStyle
@@ -60,6 +61,13 @@ def _process_img(img, size):
     return img, zoom_r
 
 
+def _process_img_cv(img, size):
+    size = size[1], size[0]
+    zoom_r = np.array(img.shape[1::-1])/np.array(size)
+    img = cv.resize(img, size)
+    return img, zoom_r
+
+
 class YoloDataSequence(Sequence):
     """Read the images and annotations
     created by labelimg or labelme as a Sequence.
@@ -69,6 +77,8 @@ class YoloDataSequence(Sequence):
             file path of images.
         label_path: A string,
             file path of annotations.
+        reader: A string,
+            one of "cv" and "PIL".
         batch_size:  An integer,
             size of the batches of data (default: 20).
         label_format: A string,
@@ -101,6 +111,7 @@ class YoloDataSequence(Sequence):
     """
     def __init__(self, img_path=None,
                  label_path=None,
+                 reader="PIL",
                  batch_size=20,
                  label_format="labelimg",
                  size=(448, 448),
@@ -131,6 +142,15 @@ class YoloDataSequence(Sequence):
         self.thread_num = thread_num
         self.show_progress = show_progress
 
+        if reader == "cv":
+            self._img_reader = cv.imread
+            self._img_processor = _process_img_cv
+        elif reader == "PIL":
+            self._img_reader = Image.open
+            self._img_processor = _process_img
+        else:
+            raise ValueError(f"Invalid reader: {reader}")
+
         if (label_format == "labelme"
             and (img_path is None or label_path is None)):
             if label_path is None:
@@ -158,6 +178,8 @@ class YoloDataSequence(Sequence):
             raise IndexError("Sequence index out of range")
         def _encode_to_array(img, bbs,
                              grid_shape, pos, labels):
+            if self.preprocessing is not None:
+                img = self.preprocessing(img)
             img_data[pos] = img
 
             grid_height = img.shape[0]/grid_shape[0]
@@ -214,8 +236,9 @@ class YoloDataSequence(Sequence):
                           encoding=self.encoding) as file:
                     soup = BeautifulSoup(file.read(), "xml")
 
-                img = Image.open(os.path.join(self.img_path, name))
-                img, zoom_r = _process_img(img, self.size)
+                img = self._img_reader(os.path.join(self.img_path, name))
+
+                img, zoom_r = self._img_processor(img, self.size)
 
                 bbs = []
                 labels = []
@@ -249,11 +272,11 @@ class YoloDataSequence(Sequence):
 
                 if self.img_path is None:
                     img64 = data['imageData']
-                    img = Image.open(BytesIO(base64.b64decode(img64)))
+                    img = self._img_reader(BytesIO(base64.b64decode(img64)))
                 else:
-                    img = Image.open(os.path.join(self.img_path, name))
+                    img = self._img_reader(os.path.join(self.img_path, name))
 
-                img, zoom_r = _process_img(img, self.size)
+                img, zoom_r = self._img_processor(img, self.size)
 
                 bbs = []
                 labels = []
@@ -312,8 +335,6 @@ class YoloDataSequence(Sequence):
 
         if self.rescale is not None:
             img_data = img_data*self.rescale
-        if self.preprocessing is not None:
-            img_data = self.preprocessing(img_data)
 
         return img_data, label_data
 
